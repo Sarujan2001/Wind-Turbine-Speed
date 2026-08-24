@@ -17,7 +17,7 @@
 // back to its own hotspot automatically so the dashboard is never unreachable.
 // ---------------------------------------------------------------------------
 
-#define WIFI_JOIN_NETWORK 0
+#define WIFI_JOIN_NETWORK 1
 
 // Hotspot details used in access-point mode (and as the fallback).
 // The password must be at least 8 characters, or the hotspot will be open.

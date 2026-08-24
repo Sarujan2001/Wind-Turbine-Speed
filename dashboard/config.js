@@ -1,12 +1,18 @@
 window.WIND_DASHBOARD_CONFIG = {
-  // Temporary location: Brisbane. Replace with the wind-turbine site.
+
+  // Wind turbine test site location.
   siteName: "SPL Wind Turbine Test Site",
-  latitude: -27.4698,
-  longitude: 153.0251,
+
+  latitude: -38.33920835101432,
+
+  longitude: 144.7383156116512,
+
   mapZoom: 8,
 
-  // Enter the numeric ID after creating a public ThingSpeak channel.
+  // Public ThingSpeak channel.
   // Leave null to run the animated demonstration feed.
-  thingSpeakChannelId: null,
+  thingSpeakChannelId: 3466607,
+
   refreshSeconds: 20
+
 };
