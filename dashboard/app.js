@@ -28,49 +28,19 @@ function renderReading(reading) {
   windChart.update("none");
 }
 
-// Chart styling is kept in step with styles.css by hand: Chart.js draws to a
-// canvas and cannot read CSS custom properties.
-const INK = "#000000";
-const INK_MUTED = "#525252";
-const HAIRLINE = "#e5e5e5";
-const MONO = "'JetBrains Mono', ui-monospace, Consolas, monospace";
-
 function createChart() {
   windChart = new Chart($("wind-chart"), {
     type: "line",
     data: { labels: [], datasets: [{
-      data: [], borderColor: INK, backgroundColor: "rgba(0,0,0,.06)",
-      borderWidth: 2, fill: true,
-      // Zero tension: straight segments, not a soft curve. The angular
-      // profile is deliberate and matches the sharp geometry of the system.
-      tension: 0, pointRadius: 0, pointHoverRadius: 4,
-      pointHoverBackgroundColor: INK, pointHoverBorderColor: "#ffffff",
-      pointHoverBorderWidth: 2
+      data: [], borderColor: "#58e2e8", backgroundColor: "rgba(88,226,232,.09)",
+      borderWidth: 2, fill: true, tension: .35, pointRadius: 0
     }]},
     options: {
       responsive: true, maintainAspectRatio: false,
-      interaction: { mode: "index", intersect: false },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: INK, titleColor: "#ffffff", bodyColor: "#ffffff",
-          titleFont: { family: MONO, size: 10 },
-          bodyFont: { family: MONO, size: 11 },
-          cornerRadius: 0, displayColors: false, padding: 10
-        }
-      },
+      plugins: { legend: { display: false } },
       scales: {
-        x: {
-          ticks: { color: INK_MUTED, maxTicksLimit: 7, font: { family: MONO, size: 10 } },
-          grid: { display: false },
-          border: { color: INK, width: 1 }
-        },
-        y: {
-          beginAtZero: true,
-          ticks: { color: INK_MUTED, font: { family: MONO, size: 10 } },
-          grid: { color: HAIRLINE, drawTicks: false },
-          border: { color: INK, width: 1 }
-        }
+        x: { ticks: { color: "#7897a1", maxTicksLimit: 7 }, grid: { display: false } },
+        y: { beginAtZero: true, ticks: { color: "#7897a1" }, grid: { color: "rgba(141,202,216,.1)" } }
       }
     }
   });
@@ -114,15 +84,8 @@ async function initialiseRadar() {
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19, attribution: "© OpenStreetMap"
   }).addTo(map);
-  // A bordered square rather than Leaflet's circle marker, echoing the
-  // punctuation mark under the hero. Markers sit in the overlay pane, so the
-  // grayscale filter on the tile pane leaves it untouched.
-  L.marker([config.latitude, config.longitude], {
-    icon: L.divIcon({
-      className: "site-marker", html: "",
-      iconSize: [14, 14], iconAnchor: [7, 7]
-    }),
-    keyboard: false, title: config.siteName
+  L.circleMarker([config.latitude, config.longitude], {
+    radius: 7, color: "#fff", weight: 2, fillColor: "#58e2e8", fillOpacity: 1
   }).addTo(map).bindTooltip(config.siteName);
 
   try {
