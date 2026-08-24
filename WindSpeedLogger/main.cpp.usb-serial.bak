@@ -1,0 +1,136 @@
+#include <Arduino.h>
+
+#include "cloud_config.h"
+
+#if CLOUD_CONFIGURED
+#include <HTTPClient.h>
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include "secrets.h"
+#endif
+
+// SPL Wind Speed Logger
+// Seeed Studio XIAO ESP32-C3
+// SEN0170 signal -> 20k/10k divider -> D1 / GPIO3 / ADC1_CH3
+
+constexpr uint8_t WIND_ADC_PIN = D1;  // D1 is GPIO3 (analog-capable)
+constexpr uint16_t SAMPLE_COUNT = 64;
+constexpr float DIVIDER_MULTIPLIER = 3.0f;
+constexpr float METRES_PER_SECOND_PER_SENSOR_VOLT = 6.0f;
+constexpr float MAX_SENSOR_VOLTAGE = 5.0f;
+constexpr uint32_t CLOUD_INTERVAL_MS = 20000;
+
+uint32_t lastCloudUpdate = 0;
+
+#if CLOUD_CONFIGURED
+void connectWiFi() {
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.print("Connecting to Wi-Fi");
+
+  const uint32_t startedAt = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - startedAt < 15000) {
+    delay(500);
+    Serial.print('.');
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.print("\nWi-Fi connected, IP: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("\nWi-Fi unavailable; local logging will continue.");
+  }
+}
+
+void publishReading(float windSpeedMS, float windSpeedKMH,
+                    float windAdcVoltage, float sensorVoltage,
+                    float adcRaw) {
+  if (millis() - lastCloudUpdate < CLOUD_INTERVAL_MS) return;
+  lastCloudUpdate = millis();
+
+  if (WiFi.status() != WL_CONNECTED) {
+    WiFi.reconnect();
+    return;
+  }
+
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient request;
+
+  if (!request.begin(client, "https://api.thingspeak.com/update.json")) return;
+  request.addHeader("Content-Type", "application/x-www-form-urlencoded");
+
+  String body = "api_key=" + String(THINGSPEAK_WRITE_API_KEY);
+  body += "&field1=" + String(windSpeedMS, 2);
+  body += "&field2=" + String(windSpeedKMH, 1);
+  body += "&field3=" + String(windAdcVoltage, 3);
+  body += "&field4=" + String(sensorVoltage, 3);
+  body += "&field5=" + String(adcRaw, 0);
+
+  const int responseCode = request.POST(body);
+  Serial.print(" | CLOUD=");
+  Serial.println(responseCode == 200 ? "OK" : String(responseCode));
+  request.end();
+}
+#endif
+
+void setup() {
+  Serial.begin(115200);
+  delay(1500);
+
+  analogReadResolution(12);
+  // ESP32-C3 11 dB attenuation covers the expected 0-1.667 V ADC signal.
+  analogSetPinAttenuation(WIND_ADC_PIN, ADC_11db);
+
+  Serial.println();
+  Serial.println("SPL Wind Speed Logger");
+  Serial.println("XIAO ESP32-C3 | ADC: D1 / GPIO3");
+  Serial.println("Waiting for SEN0170 signal...");
+
+#if CLOUD_CONFIGURED
+  connectWiFi();
+#else
+  Serial.println("Cloud upload disabled (no secrets.h file).");
+#endif
+}
+
+void loop() {
+  uint32_t rawTotal = 0;
+  uint32_t millivoltTotal = 0;
+
+  for (uint16_t i = 0; i < SAMPLE_COUNT; ++i) {
+    rawTotal += analogRead(WIND_ADC_PIN);
+    millivoltTotal += analogReadMilliVolts(WIND_ADC_PIN);
+    delay(2);
+  }
+
+  const float adcRaw = static_cast<float>(rawTotal) / SAMPLE_COUNT;
+  const float windAdcVoltage =
+      (static_cast<float>(millivoltTotal) / SAMPLE_COUNT) / 1000.0f;
+
+  float sensorVoltage = windAdcVoltage * DIVIDER_MULTIPLIER;
+  sensorVoltage = constrain(sensorVoltage, 0.0f, MAX_SENSOR_VOLTAGE);
+
+  const float windSpeedMS =
+      sensorVoltage * METRES_PER_SECOND_PER_SENSOR_VOLT;
+  const float windSpeedKMH = windSpeedMS * 3.6f;
+
+  Serial.print("ADC=");
+  Serial.print(adcRaw, 0);
+  Serial.print(" | WIND_ADC=");
+  Serial.print(windAdcVoltage, 3);
+  Serial.print(" V | SENSOR=");
+  Serial.print(sensorVoltage, 3);
+  Serial.print(" V | WIND=");
+  Serial.print(windSpeedMS, 2);
+  Serial.print(" m/s | ");
+  Serial.print(windSpeedKMH, 1);
+  Serial.println(" km/h");
+
+#if CLOUD_CONFIGURED
+  publishReading(windSpeedMS, windSpeedKMH, windAdcVoltage,
+                 sensorVoltage, adcRaw);
+#endif
+
+  delay(500);
+}

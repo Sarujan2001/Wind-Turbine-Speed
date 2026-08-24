@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#07141c">
+    <title>SPL WindWatch</title>
+    <link rel="preconnect" href="https://unpkg.com">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark">SPL</span>
+        <div>
+          <h1>WindWatch</h1>
+          <p id="site-name">Wind turbine test site</p>
+        </div>
+      </div>
+      <div class="connection">
+        <span id="status-dot" class="status-dot demo"></span>
+        <span id="connection-label">Demonstration data</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="hero-card">
+        <div class="hero-copy">
+          <p class="eyebrow">LIVE WIND SPEED</p>
+          <div class="speed-row">
+            <span id="wind-speed" class="speed">0.0</span>
+            <span class="unit">km/h</span>
+          </div>
+          <p id="wind-ms" class="secondary-reading">0.00 m/s</p>
+          <div class="freshness">
+            <span>Last sensor update</span>
+            <strong id="last-updated">Waiting…</strong>
+          </div>
+        </div>
+        <div class="wind-orbit" aria-hidden="true">
+          <div class="orbit orbit-one"></div>
+          <div class="orbit orbit-two"></div>
+          <div id="wind-arrow" class="wind-arrow">➤</div>
+        </div>
+      </section>
+
+      <section class="metrics-grid">
+        <article class="metric-card">
+          <p>Recent gust</p>
+          <strong><span id="gust-speed">0.0</span> <small>km/h</small></strong>
+          <span>maximum in loaded history</span>
+        </article>
+        <article class="metric-card">
+          <p>ADC signal</p>
+          <strong><span id="adc-voltage">0.000</span> <small>V</small></strong>
+          <span>at XIAO D1 / GPIO3</span>
+        </article>
+        <article class="metric-card">
+          <p>Sensor output</p>
+          <strong><span id="sensor-voltage">0.000</span> <small>V</small></strong>
+          <span>calculated before divider</span>
+        </article>
+        <article class="metric-card">
+          <p>Wind direction</p>
+          <strong class="not-measured">Not measured</strong>
+          <span>SEN0170 measures speed only</span>
+        </article>
+      </section>
+
+      <section class="panel radar-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">PRECIPITATION RADAR</p>
+            <h2>Weather around the site</h2>
+          </div>
+          <time id="radar-time">Loading radar…</time>
+        </div>
+        <div id="radar-map" aria-label="Weather radar map"></div>
+        <div class="radar-legend">
+          <span>Light</span><i></i><i></i><i></i><i></i><i></i><span>Heavy</span>
+        </div>
+      </section>
+
+      <section class="panel chart-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">RECENT TREND</p>
+            <h2>Wind history</h2>
+          </div>
+          <span>km/h</span>
+        </div>
+        <div class="chart-wrap"><canvas id="wind-chart"></canvas></div>
+      </section>
+    </main>
+
+    <footer>
+      Sensor telemetry by SPL · Weather radar by
+      <a href="https://www.rainviewer.com/" target="_blank" rel="noreferrer">RainViewer</a>
+      · Map © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>
+    </footer>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

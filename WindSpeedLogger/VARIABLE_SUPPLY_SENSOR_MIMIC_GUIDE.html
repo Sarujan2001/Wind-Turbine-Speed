@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Wind Speed Logger - Variable Supply Sensor Mimic Guide</title>
+  <style>
+    @page { size: A4; margin: 14mm 15mm 16mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; color: #17212b; background: white;
+      font: 10.5pt/1.42 "Segoe UI", Arial, sans-serif;
+    }
+    h1 { margin: 0; color: #0b456d; font-size: 22pt; line-height: 1.08; }
+    h2 {
+      margin: 17px 0 7px; padding-bottom: 3px; color: #0b456d;
+      border-bottom: 1.5px solid #66a6c9; font-size: 14.5pt;
+    }
+    h3 { margin: 12px 0 4px; color: #174e6b; font-size: 11.5pt; }
+    p { margin: 5px 0; }
+    ol, ul { margin: 5px 0 7px 22px; padding: 0; }
+    li { margin: 2px 0; }
+    table { width: 100%; border-collapse: collapse; margin: 7px 0 10px; }
+    th, td { border: 1px solid #aebbc4; padding: 5px 7px; text-align: left; }
+    th { background: #dceef7; color: #123d56; }
+    td.num, th.num { text-align: right; }
+    .header {
+      display: flex; justify-content: space-between; align-items: flex-end;
+      border-bottom: 4px solid #1993c6; padding-bottom: 9px; margin-bottom: 12px;
+    }
+    .subtitle { margin-top: 5px; color: #4a6070; font-size: 11pt; }
+    .tag { color: #4a6070; font-size: 9pt; text-align: right; }
+    .warning, .ok, .note {
+      border-left: 5px solid; border-radius: 3px; padding: 8px 10px; margin: 9px 0;
+      break-inside: avoid;
+    }
+    .warning { border-color: #d6382e; background: #fff0ef; }
+    .ok { border-color: #23834a; background: #eef9f2; }
+    .note { border-color: #197eaa; background: #edf7fb; }
+    .warning strong { color: #a5211b; }
+    .diagram {
+      margin: 9px 0; padding: 10px 12px; border: 1px solid #9db6c5;
+      border-radius: 4px; background: #f5f9fb; font: 9.5pt/1.5 Consolas, monospace;
+      white-space: pre-wrap; break-inside: avoid;
+    }
+    .check { font-weight: 650; color: #154f6c; }
+    .small { color: #52636f; font-size: 8.8pt; }
+    .page-break { break-before: page; }
+    .keep { break-inside: avoid; }
+    .footer { margin-top: 14px; padding-top: 5px; border-top: 1px solid #b9c5cc; color: #65747e; font-size: 8pt; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>Variable Supply Sensor Mimic Guide</h1>
+      <div class="subtitle">SPL Wind Speed Logger | XIAO ESP32-C3 | SEN0170 0-5 V simulation</div>
+    </div>
+    <div class="tag">Bench test procedure<br>24 August 2026</div>
+  </div>
+
+  <div class="warning">
+    <strong>Critical:</strong> The simulated 0-5 V sensor signal goes to <strong>J2 Pin 3 (WIND_RAW)</strong>.
+    Do not apply it to J2 Pin 1. J2 Pin 1 is the fixed +12 V sensor-power rail. Never apply 12 V to
+    WIND_RAW, WIND_ADC, or the ESP32.
+  </div>
+
+  <h2>1. Connector identification</h2>
+  <table>
+    <thead><tr><th>Connector</th><th>Pin</th><th>Function</th><th>Allowed voltage</th></tr></thead>
+    <tbody>
+      <tr><td>J1</td><td>1</td><td>PCB/sensor +12 V input</td><td>Nominal 12 V</td></tr>
+      <tr><td>J1</td><td>2</td><td>Ground</td><td>0 V</td></tr>
+      <tr><td>J2</td><td>1</td><td>+12 V output to real sensor</td><td>Nominal 12 V</td></tr>
+      <tr><td>J2</td><td>2</td><td>Ground</td><td>0 V</td></tr>
+      <tr><td>J2</td><td>3</td><td>WIND_RAW / simulated sensor signal</td><td>0-5.00 V maximum</td></tr>
+      <tr><td>J2</td><td>4</td><td>Not connected</td><td>Do not use</td></tr>
+    </tbody>
+  </table>
+  <p class="small">Confirm physical pin numbering from the PCB silkscreen or design before connecting power.</p>
+
+  <h2>2. Initial wiring - ESP32 disconnected</h2>
+  <p>Turn off all supply outputs before making or changing connections.</p>
+  <div class="diagram">12 V supply +  --------------------&gt; J1 Pin 1 (+12 V)
+12 V supply -  --------------------&gt; J1 Pin 2 (GND)
+
+Variable supply +  ----------------&gt; J2 Pin 3 (WIND_RAW)
+Variable supply -  ----------------&gt; J2 Pin 2 (GND)
+
+J2 Pin 1 = +12 V sensor rail; leave unused during signal simulation
+J2 Pin 4 = NC; leave disconnected</div>
+  <div class="note">
+    The 20 kOhm/10 kOhm signal divider is passive, so 12 V is not required merely to test the divider.
+    The 12 V supply may be connected when checking the complete PCB, but it does not generate the simulated signal.
+  </div>
+
+  <h2>3. Configure the variable supply</h2>
+  <ol>
+    <li>Keep the output switched <strong>OFF</strong>.</li>
+    <li>Set voltage to <strong>0.00 V</strong>.</li>
+    <li>Set the current limit to approximately <strong>10-20 mA</strong>.</li>
+    <li>Verify positive is connected to <strong>J2 Pin 3</strong>.</li>
+    <li>Verify negative is connected to <strong>J2 Pin 2/GND</strong>.</li>
+    <li>Do not set the simulated signal above <strong>5.00 V</strong>.</li>
+  </ol>
+  <p>The divider normally draws only about 0.17 mA at a 5 V input.</p>
+
+  <h2>4. Check WIND_RAW and WIND_ADC</h2>
+  <ol>
+    <li>Set the multimeter to DC volts.</li>
+    <li>Connect the black probe to J2 Pin 2/GND.</li>
+    <li>Connect the red probe to J2 Pin 3/WIND_RAW.</li>
+    <li>Switch on the variable output at 0.00 V, then set 0.50 V.</li>
+    <li>Confirm WIND_RAW is approximately 0.50 V.</li>
+    <li>Move only the red probe to the WIND_ADC test point or D1/GPIO3 header pad.</li>
+    <li>Confirm WIND_ADC is approximately WIND_RAW divided by three.</li>
+  </ol>
+
+  <div class="ok"><strong>Pass condition:</strong> WIND_ADC = WIND_RAW / 3, allowing for normal resistor and meter tolerance.</div>
+
+  <div class="page-break"></div>
+  <h2>5. Expected test readings</h2>
+  <table>
+    <thead><tr><th class="num">J2 Pin 3 / WIND_RAW</th><th class="num">Expected WIND_ADC</th><th class="num">Simulated wind</th><th class="num">Simulated wind</th></tr></thead>
+    <tbody>
+      <tr><td class="num">0.00 V</td><td class="num">0.000 V</td><td class="num">0 m/s</td><td class="num">0.0 km/h</td></tr>
+      <tr><td class="num">0.50 V</td><td class="num">0.167 V</td><td class="num">3 m/s</td><td class="num">10.8 km/h</td></tr>
+      <tr><td class="num">1.00 V</td><td class="num">0.333 V</td><td class="num">6 m/s</td><td class="num">21.6 km/h</td></tr>
+      <tr><td class="num">2.00 V</td><td class="num">0.667 V</td><td class="num">12 m/s</td><td class="num">43.2 km/h</td></tr>
+      <tr><td class="num">3.00 V</td><td class="num">1.000 V</td><td class="num">18 m/s</td><td class="num">64.8 km/h</td></tr>
+      <tr><td class="num">4.00 V</td><td class="num">1.333 V</td><td class="num">24 m/s</td><td class="num">86.4 km/h</td></tr>
+      <tr><td class="num">5.00 V</td><td class="num">1.667 V</td><td class="num">30 m/s</td><td class="num">108.0 km/h</td></tr>
+    </tbody>
+  </table>
+
+  <h2>6. Connect and power the ESP32</h2>
+  <p>Proceed only after the divider readings pass.</p>
+  <ol>
+    <li>Switch off all supply outputs and return the variable supply to 0.00 V.</li>
+    <li>Connect PCB WIND_ADC to XIAO <strong>D1/GPIO3</strong>.</li>
+    <li>Connect XIAO GND to PCB GND.</li>
+    <li>Power the XIAO from USB, or from a properly regulated supply connected to its designated 5 V input.</li>
+    <li>Avoid simultaneously powering it from USB and an external 5 V source unless safe isolation is confirmed.</li>
+  </ol>
+  <div class="diagram">12 V supply negative  -------+
+Variable supply negative  ----+---- PCB GND ---- XIAO GND
+ESP32 supply negative  --------+
+
+PCB WIND_ADC  ---------------------- XIAO D1 / GPIO3
+Regulated 5 V or USB  --------------- XIAO power
+PCB +12 V  -------------------------- NEVER connect to XIAO</div>
+
+  <h2>7. Firmware verification</h2>
+  <p>Open the serial monitor at <strong>115200 baud</strong>. Increase the simulated signal gradually.</p>
+  <div class="keep">
+    <h3>Example: 2.00 V at J2 Pin 3</h3>
+    <div class="diagram">WIND_ADC=0.667 V | SENSOR=2.000 V | WIND=12.00 m/s | 43.2 km/h</div>
+  </div>
+  <div class="keep">
+    <h3>Example: 5.00 V at J2 Pin 3</h3>
+    <div class="diagram">WIND_ADC=1.667 V | SENSOR=5.000 V | WIND=30.00 m/s | 108.0 km/h</div>
+  </div>
+  <p>Small differences between the multimeter and ESP32 readings are normal.</p>
+
+  <h2>8. Stop conditions and safety</h2>
+  <div class="warning">
+    <ul>
+      <li>Stop if WIND_ADC is not approximately one-third of WIND_RAW.</li>
+      <li>Stop if WIND_ADC exceeds approximately 1.7 V with a maximum 5 V input.</li>
+      <li>Stop if a supply enters current limiting or any component becomes warm.</li>
+      <li>Never use current/A mode with the meter connected directly across a supply.</li>
+      <li>Perform resistance and continuity tests only while all power is disconnected.</li>
+      <li>Never apply 12 V to J2 Pin 3, WIND_ADC, D1/GPIO3, or the XIAO 5 V pin.</li>
+    </ul>
+  </div>
+
+  <h2>9. Test record</h2>
+  <table>
+    <thead><tr><th>Set WIND_RAW</th><th>Measured WIND_RAW</th><th>Measured WIND_ADC</th><th>Serial result</th><th>Pass</th></tr></thead>
+    <tbody>
+      <tr><td>0.00 V</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+      <tr><td>0.50 V</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+      <tr><td>1.00 V</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+      <tr><td>2.00 V</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+      <tr><td>3.00 V</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+      <tr><td>4.00 V</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+      <tr><td>5.00 V</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+    </tbody>
+  </table>
+  <div class="footer">SPL Wind Speed Logger - bench procedure based on R1 = 20 kOhm, R2 = 10 kOhm and C1 = 100 nF.</div>
+</body>
+</html>
