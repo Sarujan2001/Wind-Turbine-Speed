@@ -28,19 +28,41 @@ function renderReading(reading) {
   windChart.update("none");
 }
 
+// Chart.js draws to a canvas and cannot read CSS custom properties, so these
+// are kept in step with the tokens in styles.css by hand.
+const ACCENT = "#1565c0";
+const TEXT_MUTED = "#5d6b7a";
+const GRID = "#e3e8ee";
+
 function createChart() {
   windChart = new Chart($("wind-chart"), {
     type: "line",
     data: { labels: [], datasets: [{
-      data: [], borderColor: "#58e2e8", backgroundColor: "rgba(88,226,232,.09)",
-      borderWidth: 2, fill: true, tension: .35, pointRadius: 0
+      data: [], borderColor: ACCENT, backgroundColor: "rgba(21,101,192,.08)",
+      borderWidth: 2, fill: true, tension: .3, pointRadius: 0,
+      pointHoverRadius: 4, pointHoverBackgroundColor: ACCENT,
+      pointHoverBorderColor: "#fff", pointHoverBorderWidth: 2
     }]},
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: "#17222e", padding: 10, displayColors: false,
+          titleFont: { size: 11 }, bodyFont: { size: 12 }
+        }
+      },
       scales: {
-        x: { ticks: { color: "#7897a1", maxTicksLimit: 7 }, grid: { display: false } },
-        y: { beginAtZero: true, ticks: { color: "#7897a1" }, grid: { color: "rgba(141,202,216,.1)" } }
+        x: {
+          ticks: { color: TEXT_MUTED, maxTicksLimit: 7, font: { size: 11 } },
+          grid: { display: false }, border: { color: GRID }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: { color: TEXT_MUTED, font: { size: 11 } },
+          grid: { color: GRID }, border: { display: false }
+        }
       }
     }
   });
@@ -85,7 +107,7 @@ async function initialiseRadar() {
     maxZoom: 19, attribution: "© OpenStreetMap"
   }).addTo(map);
   L.circleMarker([config.latitude, config.longitude], {
-    radius: 7, color: "#fff", weight: 2, fillColor: "#58e2e8", fillOpacity: 1
+    radius: 7, color: "#fff", weight: 2, fillColor: ACCENT, fillOpacity: 1
   }).addTo(map).bindTooltip(config.siteName);
 
   try {
