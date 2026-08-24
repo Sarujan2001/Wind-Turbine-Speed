@@ -1,6 +1,5 @@
 window.WIND_DASHBOARD_CONFIG = {
 
-  // Wind turbine test site location.
   siteName: "SPL Wind Turbine Test Site",
 
   latitude: -38.33920835101432,
@@ -9,10 +8,13 @@ window.WIND_DASHBOARD_CONFIG = {
 
   mapZoom: 8,
 
-  // Public ThingSpeak channel.
-  // Leave null to run the animated demonstration feed.
-  thingSpeakChannelId: 3466607,
+  firebaseDatabaseUrl:
+    "https://spl-wind-live-default-rtdb.asia-southeast1.firebasedatabase.app",
 
-  refreshSeconds: 20
+  refreshSeconds: 5,
+
+  chartPointSeconds: 15,
+
+  chartMinutes: 60
 
 };
