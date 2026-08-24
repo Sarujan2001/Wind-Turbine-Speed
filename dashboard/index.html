@@ -3,101 +3,177 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#07141c">
+    <meta name="theme-color" content="#ffffff">
     <title>SPL WindWatch</title>
+    <meta name="description" content="Live wind speed telemetry from the SPL wind turbine test site.">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://unpkg.com">
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@300;400;500&display=swap"
+      rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
-    <header class="topbar">
-      <div class="brand">
-        <span class="brand-mark">SPL</span>
-        <div>
-          <h1>WindWatch</h1>
-          <p id="site-name">Wind turbine test site</p>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <!-- ========================= MASTHEAD ========================= -->
+    <header class="masthead">
+      <div class="container masthead__inner">
+        <div class="wordmark">
+          <span class="wordmark__mark">SPL</span>
+          <span class="wordmark__divider" aria-hidden="true"></span>
+          <span class="wordmark__name">WindWatch</span>
         </div>
-      </div>
-      <div class="connection">
-        <span id="status-dot" class="status-dot demo"></span>
-        <span id="connection-label">Demonstration data</span>
+
+        <p class="masthead__site" id="site-name">Wind turbine test site</p>
+
+        <p class="feed">
+          <span id="status-dot" class="status-dot demo" aria-hidden="true"></span>
+          <span id="connection-label" class="feed__label">Demonstration data</span>
+        </p>
       </div>
     </header>
 
-    <main class="layout">
-      <section class="hero-card">
-        <div class="hero-copy">
-          <p class="eyebrow">LIVE WIND SPEED</p>
-          <div class="speed-row">
-            <span id="wind-speed" class="speed">0.0</span>
-            <span class="unit">km/h</span>
+    <hr class="rule rule--thin">
+
+    <main id="main">
+      <!-- ========================= HERO ========================= -->
+      <section class="hero" aria-labelledby="hero-label">
+        <div class="container">
+          <p class="eyebrow" id="hero-label">Live wind speed</p>
+
+          <p class="hero__reading">
+            <span class="hero__value" id="wind-speed">0.0</span>
+            <span class="hero__unit">km/h</span>
+          </p>
+
+          <!-- Editorial punctuation: thick rule terminated by a bordered square -->
+          <div class="punctuation" aria-hidden="true">
+            <span class="punctuation__rule"></span>
+            <span class="punctuation__marker"></span>
           </div>
-          <p id="wind-ms" class="secondary-reading">0.00 m/s</p>
-          <div class="freshness">
-            <span>Last sensor update</span>
-            <strong id="last-updated">Waiting…</strong>
+
+          <div class="hero__foot">
+            <p class="hero__secondary" id="wind-ms">0.00 m/s</p>
+            <dl class="stamp">
+              <dt class="stamp__key">Last sensor update</dt>
+              <dd class="stamp__value" id="last-updated">Waiting</dd>
+            </dl>
           </div>
-        </div>
-        <div class="wind-orbit" aria-hidden="true">
-          <div class="orbit orbit-one"></div>
-          <div class="orbit orbit-two"></div>
-          <div id="wind-arrow" class="wind-arrow">➤</div>
         </div>
       </section>
 
-      <section class="metrics-grid">
-        <article class="metric-card">
-          <p>Recent gust</p>
-          <strong><span id="gust-speed">0.0</span> <small>km/h</small></strong>
-          <span>maximum in loaded history</span>
-        </article>
-        <article class="metric-card">
-          <p>ADC signal</p>
-          <strong><span id="adc-voltage">0.000</span> <small>V</small></strong>
-          <span>at XIAO D1 / GPIO3</span>
-        </article>
-        <article class="metric-card">
-          <p>Sensor output</p>
-          <strong><span id="sensor-voltage">0.000</span> <small>V</small></strong>
-          <span>calculated before divider</span>
-        </article>
-        <article class="metric-card">
-          <p>Wind direction</p>
-          <strong class="not-measured">Not measured</strong>
-          <span>SEN0170 measures speed only</span>
-        </article>
+      <hr class="rule rule--thick">
+
+      <!-- ================= READINGS — INVERTED ================= -->
+      <section class="readings" aria-labelledby="readings-title">
+        <div class="container">
+          <header class="panel__head panel__head--inverted">
+            <p class="eyebrow">Instrument</p>
+            <h2 class="panel__title" id="readings-title">Readings</h2>
+          </header>
+
+          <div class="readings__grid">
+            <article class="reading">
+              <h3 class="reading__label">Recent gust</h3>
+              <p class="reading__value">
+                <span id="gust-speed">0.0</span><span class="reading__unit">km/h</span>
+              </p>
+              <p class="reading__note">Maximum in loaded history</p>
+            </article>
+
+            <article class="reading">
+              <h3 class="reading__label">ADC signal</h3>
+              <p class="reading__value">
+                <span id="adc-voltage">0.000</span><span class="reading__unit">V</span>
+              </p>
+              <p class="reading__note">At XIAO D1 / GPIO3</p>
+            </article>
+
+            <article class="reading">
+              <h3 class="reading__label">Sensor output</h3>
+              <p class="reading__value">
+                <span id="sensor-voltage">0.000</span><span class="reading__unit">V</span>
+              </p>
+              <p class="reading__note">Calculated before divider</p>
+            </article>
+
+            <article class="reading">
+              <h3 class="reading__label">Wind direction</h3>
+              <p class="reading__value reading__value--absent">Not&nbsp;measured</p>
+              <p class="reading__note">SEN0170 measures speed only</p>
+            </article>
+          </div>
+        </div>
       </section>
 
-      <section class="panel radar-panel">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">PRECIPITATION RADAR</p>
-            <h2>Weather around the site</h2>
-          </div>
-          <time id="radar-time">Loading radar…</time>
-        </div>
-        <div id="radar-map" aria-label="Weather radar map"></div>
-        <div class="radar-legend">
-          <span>Light</span><i></i><i></i><i></i><i></i><i></i><span>Heavy</span>
+      <hr class="rule rule--thick">
+
+      <!-- ========================= TREND ========================= -->
+      <section class="panel panel--ruled" aria-labelledby="trend-title">
+        <div class="container">
+          <header class="panel__head">
+            <div>
+              <p class="eyebrow">Recent trend</p>
+              <h2 class="panel__title" id="trend-title">Wind history</h2>
+            </div>
+            <p class="panel__aside">km/h</p>
+          </header>
+
+          <figure class="chart">
+            <div class="chart__frame"><canvas id="wind-chart"></canvas></div>
+            <figcaption class="chart__caption">
+              Most recent sixty readings, oldest at left.
+            </figcaption>
+          </figure>
         </div>
       </section>
 
-      <section class="panel chart-panel">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">RECENT TREND</p>
-            <h2>Wind history</h2>
-          </div>
-          <span>km/h</span>
+      <hr class="rule rule--thick">
+
+      <!-- ========================= RADAR ========================= -->
+      <section class="panel" aria-labelledby="radar-title">
+        <div class="container">
+          <header class="panel__head">
+            <div>
+              <p class="eyebrow">Precipitation radar</p>
+              <h2 class="panel__title" id="radar-title">Weather around the site</h2>
+            </div>
+            <time class="panel__aside" id="radar-time">Loading radar</time>
+          </header>
+
+          <figure class="radar">
+            <div id="radar-map" role="img" aria-label="Precipitation radar map centred on the test site"></div>
+            <figcaption class="radar__legend">
+              <span class="radar__legend-end">Light</span>
+              <span class="radar__scale" aria-hidden="true">
+                <i></i><i></i><i></i><i></i><i></i>
+              </span>
+              <span class="radar__legend-end">Heavy</span>
+            </figcaption>
+          </figure>
         </div>
-        <div class="chart-wrap"><canvas id="wind-chart"></canvas></div>
       </section>
     </main>
 
-    <footer>
-      Sensor telemetry by SPL · Weather radar by
-      <a href="https://www.rainviewer.com/" target="_blank" rel="noreferrer">RainViewer</a>
-      · Map © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>
+    <hr class="rule rule--ultra">
+
+    <!-- ========================= FOOTER ========================= -->
+    <footer class="colophon">
+      <div class="container colophon__inner">
+        <p class="colophon__line">
+          Sensor telemetry by SPL &middot; Seeed XIAO ESP32-C3 &middot; DFRobot SEN0170
+        </p>
+        <p class="colophon__line">
+          Radar by
+          <a href="https://www.rainviewer.com/" target="_blank" rel="noreferrer">RainViewer</a>
+          &middot; Map &copy;
+          <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>
+        </p>
+      </div>
     </footer>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
