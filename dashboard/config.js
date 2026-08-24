@@ -11,7 +11,7 @@ window.WIND_DASHBOARD_CONFIG = {
   firebaseDatabaseUrl:
     "https://spl-wind-live-default-rtdb.asia-southeast1.firebasedatabase.app",
 
-  refreshSeconds: 5,
+  refreshSeconds: 2,
 
   chartPointSeconds: 15,
 

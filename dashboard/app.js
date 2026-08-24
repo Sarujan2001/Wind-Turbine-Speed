@@ -176,10 +176,11 @@ function stopPolling() {
 // for text/event-stream, which EventSource does on its own. That gives a push
 // feed with no SDK to load and no API key in the page.
 function streamLive() {
-  if (!window.EventSource) {
-    startPolling();
-    return;
-  }
+  // Start with a normal REST read so the dashboard never sits empty when a
+  // network proxy accepts the streaming connection but buffers its events.
+  // A working stream stops this polling in its open handler below.
+  startPolling();
+  if (!window.EventSource) return;
 
   const stream = new EventSource(`${DB}/live.json`);
   let latest = {};
