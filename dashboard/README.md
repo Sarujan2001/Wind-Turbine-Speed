@@ -1,4 +1,4 @@
-# SPL WindWatch dashboard
+# SPL Wind Monitoring dashboard
 
 This dashboard combines the SPL wind sensor feed with RainViewer radar. It can
 be hosted as a static site on GitHub Pages, Cloudflare Pages, Netlify, or any
@@ -13,8 +13,8 @@ From the project root:
 python -m http.server 8080 -d dashboard
 ```
 
-Open `http://localhost:8080`. Without a Firebase database URL, the page uses a
-clearly labelled demonstration feed while the radar remains live.
+Open `http://localhost:8080`. A configured Firebase database URL is required
+for live readings; the production dashboard never substitutes mock values.
 
 ## Connect the ESP32 cloud feed
 
@@ -46,15 +46,15 @@ The dashboard needs no key at all, because it only reads.
 | `/live` | every 2 s, streamed | the speed, gust, and voltage tiles |
 | `/history` | read once at load | the first hour of the trend chart |
 
-After loading the stored ring, the page adds its own chart point every
-`chartPointSeconds`. Keep `chartPointSeconds` and `chartMinutes` in
-`config.js` in step with `CLOUD_HISTORY_INTERVAL_MS` and `CLOUD_HISTORY_SLOTS`
-in `include/cloud_config.h`, or the two halves of the chart are drawn at
-different spacings.
+The current database ring retains one hour. Longer chart controls are visibly
+disabled until the backend retains enough data to support them.
 
 If the browser cannot hold the stream open — a proxy that buffers responses, for
 instance — the page falls back to polling `/live` every `refreshSeconds` and
 returns to streaming as soon as it can.
+
+The station is marked offline when its Firebase timestamp is older than
+`offlineAfterSeconds`. The last known values remain visible while offline.
 
 ## Remote access
 
