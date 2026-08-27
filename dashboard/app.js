@@ -1,8 +1,8 @@
 import {
   $, configureStation, dateKey, metresPerSecond, readingsForToday,
   renderHistory, renderReading, setHistoryView, summarise, updateFreshness
-} from "./ui.js?v=wind-station-5";
-import { createCharts } from "./charts.js?v=wind-station-5";
+} from "./ui.js?v=wind-station-6";
+import { createCharts } from "./charts.js?v=wind-station-6";
 
 const config = window.WIND_DASHBOARD_CONFIG;
 const DB = config.firebaseDatabaseUrl?.replace(/\/+$/, "") || null;
@@ -68,12 +68,6 @@ function savePinSecurity(security) {
 function pinSignature(pin) {
   let signature = 17;
   for (const digit of pin) signature = (signature * 31 + digit.charCodeAt(0)) >>> 0;
-  return signature;
-}
-
-function pinSignature(pin) {
-  let signature = 17;
-  for (const character of pin) signature = (signature * 31 + character.charCodeAt(0)) >>> 0;
   return signature;
 }
 
