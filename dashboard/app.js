@@ -1,43 +1,21 @@
 import {
   $, configureStation, dateKey, metresPerSecond, readingsForToday,
   renderHistory, renderReading, setHistoryView, summarise, updateFreshness
-} from "./ui.js?v=wind-station-2";
-import { createCharts } from "./charts.js?v=wind-station-2";
+} from "./ui.js?v=wind-station-3";
+import { createCharts } from "./charts.js?v=wind-station-3";
 
 const config = window.WIND_DASHBOARD_CONFIG;
 const DB = config.firebaseDatabaseUrl?.replace(/\/+$/, "") || null;
-const RESET_STORAGE_KEY = `wind-dashboard:${config.stationId || "station"}:day-reset`;
-const state = {
-  readings: [],
-  latest: null,
-  selectedDate: dateKey(new Date()),
-  dayReset: loadDayReset()
-};
+const state = { readings: [], latest: null, selectedDate: dateKey(new Date()) };
 const MAX_LOCAL_POINTS = 2200;
 let charts;
 let pollTimer = null;
 let eventStream = null;
+let adminSession = null;
+let pendingAdminAction = null;
 
 function number(value, fallback = NaN) {
   return Number.isFinite(value) ? value : fallback;
-}
-
-function loadDayReset() {
-  try {
-    const reset = JSON.parse(window.localStorage.getItem(RESET_STORAGE_KEY));
-    if (reset?.date === dateKey(new Date()) && Number.isFinite(reset.after)) return reset;
-  } catch (error) {
-    console.warn("Could not load the dashboard reset time", error);
-  }
-  return null;
-}
-
-function saveDayReset(reset) {
-  try {
-    window.localStorage.setItem(RESET_STORAGE_KEY, JSON.stringify(reset));
-  } catch (error) {
-    console.warn("Could not save the dashboard reset time", error);
-  }
 }
 
 // All unit conversion enters through this adapter. The dashboard itself works
@@ -76,13 +54,8 @@ function mergeReading(reading) {
   }
 }
 
-function isVisibleReading(point) {
-  return !state.dayReset || dateKey(point.time) !== state.dayReset.date ||
-    point.time.getTime() >= state.dayReset.after;
-}
-
 function visibleReadings() {
-  return state.readings.filter(isVisibleReading);
+  return state.readings;
 }
 
 function selectedHistory() {
@@ -183,24 +156,159 @@ function setActionStatus(message, isError = false) {
   status.classList.toggle("is-error", isError);
 }
 
-function clearToday() {
-  const confirmed = window.confirm(
-    "Are you sure you want to clear today's displayed results?\n\n" +
-    "The dashboard will start a clean session from now. Existing Firebase records will remain recoverable."
+function adminSessionIsValid() {
+  return adminSession && Date.now() < adminSession.expiresAt;
+}
+
+function updateAdminControls() {
+  const signedIn = adminSessionIsValid();
+  $("admin-login-button").hidden = signedIn;
+  $("admin-signout-button").hidden = !signedIn;
+  $("admin-session-label").textContent = signedIn
+    ? `Administrator: ${adminSession.email}` : "Administrator signed out";
+}
+
+function signOutAdmin(message = "Administrator signed out.") {
+  adminSession = null;
+  pendingAdminAction = null;
+  $("admin-password").value = "";
+  updateAdminControls();
+  setActionStatus(message);
+}
+
+function openAdminLogin(action = null) {
+  if (!adminSessionIsValid()) {
+    adminSession = null;
+    updateAdminControls();
+  }
+  pendingAdminAction = action;
+  $("admin-error").textContent = "";
+  $("admin-api-key").value = config.firebaseWebApiKey || "";
+  $("admin-dialog").showModal();
+}
+
+function friendlyAuthError(code) {
+  const messages = {
+    INVALID_LOGIN_CREDENTIALS: "The email or password is incorrect.",
+    EMAIL_NOT_FOUND: "No Firebase user exists for that email.",
+    INVALID_PASSWORD: "The password is incorrect.",
+    USER_DISABLED: "This Firebase user has been disabled.",
+    INVALID_EMAIL: "Enter a valid email address.",
+    OPERATION_NOT_ALLOWED: "Enable Email/Password sign-in in Firebase Authentication."
+  };
+  if (code?.includes("API key not valid")) return "The Firebase Web API key is not valid.";
+  return messages[code] || `Firebase sign-in failed (${code || "unknown error"}).`;
+}
+
+async function signInAdmin(event) {
+  event.preventDefault();
+  const apiKey = $("admin-api-key").value.trim();
+  const email = $("admin-email").value.trim();
+  const password = $("admin-password").value;
+  const error = $("admin-error");
+  error.textContent = "";
+  if (!apiKey || !email || !password) {
+    error.textContent = "Enter the API key, administrator email, and password.";
+    return;
+  }
+
+  $("admin-submit").disabled = true;
+  try {
+    const response = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, returnSecureToken: true })
+      }
+    );
+    const result = await response.json();
+    if (!response.ok || !result.idToken) {
+      throw new Error(friendlyAuthError(result.error?.message));
+    }
+
+    adminSession = {
+      email: result.email || email,
+      idToken: result.idToken,
+      uid: result.localId,
+      expiresAt: Date.now() + Math.max(60, Number(result.expiresIn) || 3600) * 1000 - 60000
+    };
+    $("admin-password").value = "";
+    $("admin-api-key").value = "";
+    $("admin-dialog").close();
+    updateAdminControls();
+    setActionStatus(`Administrator ${adminSession.email} signed in.`);
+
+    const action = pendingAdminAction;
+    pendingAdminAction = null;
+    if (action === "clearToday") await deleteTodayFromFirebase();
+  } catch (signInError) {
+    error.textContent = signInError.message;
+  } finally {
+    $("admin-submit").disabled = false;
+  }
+}
+
+async function authenticatedHistoryPatch(patch) {
+  if (!adminSessionIsValid()) throw new Error("The administrator session expired. Sign in again.");
+  const response = await fetch(
+    `${DB}/history.json?auth=${encodeURIComponent(adminSession.idToken)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch)
+    }
   );
-  if (!confirmed) return;
+  if (response.status === 401 || response.status === 403) {
+    signOutAdmin("Administrator permission was rejected by Firebase.");
+    throw new Error("This account is not permitted to delete history. Check its UID in the database rules.");
+  }
+  if (!response.ok) throw new Error(`Firebase deletion failed (HTTP ${response.status}).`);
+}
 
-  const now = Date.now();
-  state.dayReset = { date: dateKey(new Date(now)), after: now };
-  saveDayReset(state.dayReset);
-  state.selectedDate = state.dayReset.date;
-  $("history-date").value = state.selectedDate;
+async function deleteTodayFromFirebase() {
+  if (!adminSessionIsValid()) {
+    openAdminLogin("clearToday");
+    return;
+  }
 
-  const visible = visibleReadings();
-  if (state.latest) renderReading(state.latest, summarise(readingsForToday(visible)));
-  charts.updateMain(visible);
-  renderHistorySelection();
-  setActionStatus(`Today's results restarted at ${new Date(now).toLocaleTimeString()}.`);
+  const today = dateKey(new Date());
+  $("clear-today-button").disabled = true;
+  try {
+    const history = await fetchJson("/history");
+    const matching = Object.entries(history || {}).filter(([, node]) =>
+      Number.isFinite(node?.ts) && dateKey(new Date(node.ts)) === today);
+    if (!matching.length) {
+      setActionStatus("No stored readings are available to delete for today.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to permanently delete ${matching.length} stored readings for ${today}?\n\n` +
+      "This deletes them from Firebase and cannot be undone. The live sensor reading will continue."
+    );
+    if (!confirmed) return;
+
+    setActionStatus("Deleting today's Firebase history...");
+    const removals = Object.fromEntries(matching.map(([slot]) => [slot, null]));
+    await authenticatedHistoryPatch(removals);
+    state.readings = state.readings.filter((point) => dateKey(point.time) !== today);
+    state.selectedDate = today;
+    $("history-date").value = today;
+    if (state.latest) renderReading(state.latest, null);
+    charts.updateMain(state.readings);
+    renderHistorySelection();
+    setActionStatus(`Deleted ${matching.length} Firebase readings for ${today}.`);
+  } catch (error) {
+    setActionStatus(error.message, true);
+  } finally {
+    $("clear-today-button").disabled = false;
+  }
+}
+
+function requestClearToday() {
+  if (adminSessionIsValid()) deleteTodayFromFirebase();
+  else openAdminLogin("clearToday");
 }
 
 function csvCell(value) {
@@ -283,9 +391,20 @@ function bindHistoryControls() {
   $("next-day").addEventListener("click", () => moveSelectedDate(1));
   $("graph-tab").addEventListener("click", () => { setHistoryView("graph"); charts.resizeHistory(); });
   $("table-tab").addEventListener("click", () => setHistoryView("table"));
-  $("clear-today-button").addEventListener("click", clearToday);
+  $("clear-today-button").addEventListener("click", requestClearToday);
   $("export-button").addEventListener("click", openExportDialog);
   $("export-form").addEventListener("submit", exportDateRange);
+  $("admin-login-button").addEventListener("click", () => openAdminLogin());
+  $("admin-signout-button").addEventListener("click", () => signOutAdmin());
+  $("admin-form").addEventListener("submit", signInAdmin);
+  $("admin-cancel").addEventListener("click", () => {
+    pendingAdminAction = null;
+    $("admin-dialog").close();
+  });
+  $("admin-dialog").addEventListener("close", () => {
+    $("admin-password").value = "";
+    if (!adminSessionIsValid()) pendingAdminAction = null;
+  });
 }
 
 function bindPageControls() {
@@ -330,6 +449,7 @@ function initialise() {
   configureStation(config);
   charts = createCharts($("wind-chart"), $("history-chart"));
   bindPageControls();
+  updateAdminControls();
   renderHistorySelection();
   window.setInterval(() => updateFreshness(state.latest, config.offlineAfterSeconds), 1000);
 

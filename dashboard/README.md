@@ -37,7 +37,9 @@ Full walkthrough, including the Firebase console steps, is in
 
 The board's account password stays only on the ESP32 and is excluded from Git.
 Never put it in `dashboard/config.js` — that file is published to the world.
-The dashboard needs no key at all, because it only reads.
+Normal dashboard viewing needs no key because reads are public. The destructive
+administrator control asks for the Web API key and account credentials at
+runtime and does not save them.
 
 ## What the page reads
 
@@ -51,13 +53,34 @@ disabled until the backend retains enough data to support them.
 
 ## History controls
 
-- **Clear today** asks for confirmation and then starts a clean dashboard
-  session from that moment. The reset is saved in that browser only; it does
-  not delete Firebase records or affect another browser.
+- **Clear today** requires Firebase administrator sign-in, counts today's
+  retained records, asks for confirmation, and permanently deletes only those
+  `/history` slots. `/live` is not deleted, so new sensor readings continue.
 - **Export CSV** accepts an inclusive start and end date and exports every
-  retained, non-cleared reading available in that range. With the current
-  one-hour Firebase ring, the export cannot include readings that have already
-  been overwritten by the station.
+  retained reading available in that range. With the current one-hour Firebase
+  ring, the export cannot include readings that have already been overwritten
+  by the station.
+
+### Administrator deletion
+
+The administrator dialog asks for the Firebase Web API key, email, and password
+at runtime. They remain only in page memory: the password and API key fields are
+cleared after sign-in, the ID token is not persisted, and all session state is
+lost when the page closes. No credential is committed to GitHub.
+
+The signed-in account's UID must be authorized by the deployed Realtime
+Database rules. The existing board account works immediately. For stronger
+separation, create a second Email/Password user and add this value in the
+Realtime Database **Data** tab:
+
+```text
+/admins/ADMIN_USER_UID = true
+```
+
+Then deploy [../firebase/database.rules.json](../firebase/database.rules.json).
+Those rules allow the ESP32 account to write measurements, but allow an entry
+under `/admins` to delete history only. An administrator cannot create or alter
+sensor readings.
 
 If the browser cannot hold the stream open — a proxy that buffers responses, for
 instance — the page falls back to polling `/live` every `refreshSeconds` and

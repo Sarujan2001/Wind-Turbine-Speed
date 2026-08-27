@@ -145,7 +145,9 @@ canvas { display: block; }
 .date-controls { display: flex; align-items: center; gap: 6px; }
 .date-controls input { color: var(--text); text-transform: none; }
 .history-actions { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: -4px 0 16px; padding: 11px 12px; background: var(--surface-soft); border: 1px solid var(--border); border-radius: 4px; }
-.history-actions__buttons { display: flex; gap: 7px; flex: none; }
+.history-actions__buttons { display: flex; flex-wrap: wrap; gap: 7px; flex: none; }
+.history-actions__status { display: grid; gap: 2px; text-align: right; }
+.history-actions__status strong { color: var(--text); font-size: .72rem; }
 .history-actions p { color: var(--muted); font-size: .72rem; text-align: right; }
 .history-actions p.is-error, .form-error { color: var(--offline); }
 .history-summary { border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
@@ -188,9 +190,11 @@ code { color: var(--accent-dark); background: var(--accent-soft); padding: 2px 4
 .button--secondary:hover { background: var(--accent-soft); border-color: var(--accent); }
 .button--danger { color: #fff; background: var(--offline); border-color: var(--offline); }
 .button--danger:hover { background: #9f302c; }
+.button:disabled { opacity: .55; cursor: wait; }
 .export-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-block: 18px 8px; }
-.export-fields label { display: grid; gap: 5px; color: var(--muted); font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
-.export-fields input { width: 100%; padding: 9px 10px; color: var(--text); background: #fff; border: 1px solid var(--border-strong); border-radius: 3px; }
+.admin-fields { display: grid; gap: 12px; margin-block: 18px 8px; }
+.export-fields label, .admin-fields label { display: grid; gap: 5px; color: var(--muted); font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.export-fields input, .admin-fields input { width: 100%; padding: 9px 10px; color: var(--text); background: #fff; border: 1px solid var(--border-strong); border-radius: 3px; }
 .form-error { min-height: 20px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 
@@ -233,7 +237,7 @@ code { color: var(--accent-dark); background: var(--accent-soft); padding: 2px 4
   .history-summary { overflow-x: auto; }
   .history-summary__row { min-width: 520px; }
   .history-actions { align-items: stretch; flex-direction: column; }
-  .history-actions p { text-align: left; }
+  .history-actions p, .history-actions__status { text-align: left; }
   .date-controls { width: 100%; display: grid; grid-template-columns: 1fr 1.25fr 1fr; }
   .date-controls button, .date-controls input { min-width: 0; font-size: .63rem; padding-inline: 5px; }
   .footer__inner { flex-direction: column; align-items: flex-start; justify-content: center; padding-block: 20px; }
