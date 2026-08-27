@@ -116,6 +116,14 @@ export function renderReading(reading, summary) {
     $("summary-average").textContent = fixed(summary.average, 2);
     $("summary-gust").textContent = fixed(summary.gustMaximum, 2);
     $("summary-samples").textContent = summary.samples.toLocaleString();
+  } else {
+    $("metric-max").textContent = "--";
+    $("metric-average").textContent = "--";
+    $("summary-max").textContent = "--";
+    $("summary-min").textContent = "--";
+    $("summary-average").textContent = "--";
+    $("summary-gust").textContent = "--";
+    $("summary-samples").textContent = "0";
   }
   $("summary-runtime").textContent = formatRuntime(reading.up);
 }

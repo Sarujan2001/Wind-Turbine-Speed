@@ -9,7 +9,7 @@
     <link rel="icon" href="data:,">
     <link rel="preconnect" href="https://unpkg.com">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-    <link rel="stylesheet" href="styles.css?v=wind-station-1">
+    <link rel="stylesheet" href="styles.css?v=wind-station-2">
   </head>
   <body>
     <a class="skip-link" href="#dashboard">Skip to dashboard</a>
@@ -92,6 +92,10 @@
 
         <section class="panel history-panel" id="history" aria-labelledby="history-title">
           <div class="panel-heading panel-heading--responsive"><div><p class="eyebrow">Recorded telemetry</p><h2 id="history-title">Wind History</h2></div><div class="date-controls"><button id="previous-day" type="button">‹ Previous day</button><input id="history-date" type="date" aria-label="History date"><button id="next-day" type="button">Next day ›</button></div></div>
+          <div class="history-actions">
+            <div class="history-actions__buttons"><button class="button button--secondary" id="export-button" type="button">Export CSV</button><button class="button button--danger" id="clear-today-button" type="button">Clear today</button></div>
+            <p id="history-action-status" role="status" aria-live="polite">Clear today restarts this browser's daily totals; cloud records are not deleted.</p>
+          </div>
           <div class="history-summary" role="table" aria-label="Selected date wind summary">
             <div class="history-summary__row history-summary__head" role="row"><span>Metric</span><span>Maximum</span><span>Minimum</span><span>Average</span></div>
             <div class="history-summary__row" role="row"><strong>Wind speed</strong><span id="history-wind-max">--</span><span id="history-wind-min">--</span><span id="history-wind-average">--</span></div>
@@ -113,9 +117,19 @@
 
     <dialog id="settings-dialog"><form method="dialog"><div class="dialog-heading"><h2>Station settings</h2><button class="icon-button icon-button--light" value="cancel" aria-label="Close settings">×</button></div><p>Deployment settings are managed in <code>dashboard/config.js</code>.</p><dl class="settings-list"><div><dt>Primary unit</dt><dd>m/s</dd></div><div><dt>Cloud refresh</dt><dd id="setting-refresh">--</dd></div><div><dt>Offline timeout</dt><dd id="setting-timeout">--</dd></div></dl><button class="button" value="cancel">Done</button></form></dialog>
 
+    <dialog id="export-dialog">
+      <form id="export-form">
+        <div class="dialog-heading"><h2>Export wind history</h2><button class="icon-button icon-button--light" type="button" aria-label="Close export" onclick="this.closest('dialog').close()">&times;</button></div>
+        <p>Choose an inclusive date range. The CSV will contain every retained reading available for those dates.</p>
+        <div class="export-fields"><label>From<input id="export-from" type="date" required></label><label>To<input id="export-to" type="date" required></label></div>
+        <p class="form-error" id="export-error" role="alert"></p>
+        <div class="dialog-actions"><button class="button button--secondary" type="button" onclick="this.closest('dialog').close()">Cancel</button><button class="button" type="submit">Download CSV</button></div>
+      </form>
+    </dialog>
+
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-    <script src="config.js?v=wind-station-1"></script>
-    <script type="module" src="app.js?v=wind-station-1"></script>
+    <script src="config.js?v=wind-station-2"></script>
+    <script type="module" src="app.js?v=wind-station-2"></script>
   </body>
 </html>

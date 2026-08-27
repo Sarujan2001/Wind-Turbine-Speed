@@ -49,6 +49,16 @@ The dashboard needs no key at all, because it only reads.
 The current database ring retains one hour. Longer chart controls are visibly
 disabled until the backend retains enough data to support them.
 
+## History controls
+
+- **Clear today** asks for confirmation and then starts a clean dashboard
+  session from that moment. The reset is saved in that browser only; it does
+  not delete Firebase records or affect another browser.
+- **Export CSV** accepts an inclusive start and end date and exports every
+  retained, non-cleared reading available in that range. With the current
+  one-hour Firebase ring, the export cannot include readings that have already
+  been overwritten by the station.
+
 If the browser cannot hold the stream open — a proxy that buffers responses, for
 instance — the page falls back to polling `/live` every `refreshSeconds` and
 returns to streaming as soon as it can.

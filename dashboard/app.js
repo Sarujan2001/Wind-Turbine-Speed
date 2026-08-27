@@ -1,12 +1,18 @@
 import {
   $, configureStation, dateKey, metresPerSecond, readingsForToday,
   renderHistory, renderReading, setHistoryView, summarise, updateFreshness
-} from "./ui.js?v=wind-station-1";
-import { createCharts } from "./charts.js?v=wind-station-1";
+} from "./ui.js?v=wind-station-2";
+import { createCharts } from "./charts.js?v=wind-station-2";
 
 const config = window.WIND_DASHBOARD_CONFIG;
 const DB = config.firebaseDatabaseUrl?.replace(/\/+$/, "") || null;
-const state = { readings: [], latest: null, selectedDate: dateKey(new Date()) };
+const RESET_STORAGE_KEY = `wind-dashboard:${config.stationId || "station"}:day-reset`;
+const state = {
+  readings: [],
+  latest: null,
+  selectedDate: dateKey(new Date()),
+  dayReset: loadDayReset()
+};
 const MAX_LOCAL_POINTS = 2200;
 let charts;
 let pollTimer = null;
@@ -14,6 +20,24 @@ let eventStream = null;
 
 function number(value, fallback = NaN) {
   return Number.isFinite(value) ? value : fallback;
+}
+
+function loadDayReset() {
+  try {
+    const reset = JSON.parse(window.localStorage.getItem(RESET_STORAGE_KEY));
+    if (reset?.date === dateKey(new Date()) && Number.isFinite(reset.after)) return reset;
+  } catch (error) {
+    console.warn("Could not load the dashboard reset time", error);
+  }
+  return null;
+}
+
+function saveDayReset(reset) {
+  try {
+    window.localStorage.setItem(RESET_STORAGE_KEY, JSON.stringify(reset));
+  } catch (error) {
+    console.warn("Could not save the dashboard reset time", error);
+  }
 }
 
 // All unit conversion enters through this adapter. The dashboard itself works
@@ -52,8 +76,17 @@ function mergeReading(reading) {
   }
 }
 
+function isVisibleReading(point) {
+  return !state.dayReset || dateKey(point.time) !== state.dayReset.date ||
+    point.time.getTime() >= state.dayReset.after;
+}
+
+function visibleReadings() {
+  return state.readings.filter(isVisibleReading);
+}
+
 function selectedHistory() {
-  return state.readings.filter((point) => dateKey(point.time) === state.selectedDate);
+  return visibleReadings().filter((point) => dateKey(point.time) === state.selectedDate);
 }
 
 function renderHistorySelection() {
@@ -67,10 +100,11 @@ function acceptReading(reading) {
   if (!reading) return;
   state.latest = reading;
   mergeReading(reading);
-  const today = readingsForToday(state.readings);
+  const visible = visibleReadings();
+  const today = readingsForToday(visible);
   renderReading(reading, summarise(today));
   updateFreshness(reading, config.offlineAfterSeconds);
-  charts.updateMain(state.readings);
+  charts.updateMain(visible);
   if (dateKey(reading.time) === state.selectedDate) renderHistorySelection();
 }
 
@@ -84,7 +118,7 @@ async function loadStoredHistory() {
   const slots = await fetchJson("/history");
   if (!slots) return;
   Object.values(slots).map(historyReading).filter(Boolean).forEach(mergeReading);
-  charts.updateMain(state.readings);
+  charts.updateMain(visibleReadings());
   renderHistorySelection();
 }
 
@@ -139,8 +173,97 @@ function bindRangeControls() {
     const button = event.target.closest("button[data-range]:not(:disabled)");
     if (!button) return;
     $("range-tabs").querySelectorAll("button").forEach((item) => item.classList.toggle("is-active", item === button));
-    charts.setRange(button.dataset.range, state.readings);
+    charts.setRange(button.dataset.range, visibleReadings());
   });
+}
+
+function setActionStatus(message, isError = false) {
+  const status = $("history-action-status");
+  status.textContent = message;
+  status.classList.toggle("is-error", isError);
+}
+
+function clearToday() {
+  const confirmed = window.confirm(
+    "Are you sure you want to clear today's displayed results?\n\n" +
+    "The dashboard will start a clean session from now. Existing Firebase records will remain recoverable."
+  );
+  if (!confirmed) return;
+
+  const now = Date.now();
+  state.dayReset = { date: dateKey(new Date(now)), after: now };
+  saveDayReset(state.dayReset);
+  state.selectedDate = state.dayReset.date;
+  $("history-date").value = state.selectedDate;
+
+  const visible = visibleReadings();
+  if (state.latest) renderReading(state.latest, summarise(readingsForToday(visible)));
+  charts.updateMain(visible);
+  renderHistorySelection();
+  setActionStatus(`Today's results restarted at ${new Date(now).toLocaleTimeString()}.`);
+}
+
+function csvCell(value) {
+  if (value === null || value === undefined || Number.isNaN(value)) return "";
+  const text = String(value);
+  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+function downloadCsv(points, from, to) {
+  const headings = [
+    "timestamp_iso", "local_date", "local_time", "wind_ms", "wind_kmh",
+    "gust_ms", "gust_kmh", "sensor_voltage", "adc_voltage", "adc_raw", "station_mode"
+  ];
+  const rows = points.map((point) => [
+    point.time.toISOString(), dateKey(point.time), point.time.toLocaleTimeString(),
+    point.ms, point.kmh, point.gustMs, point.gustKmh, point.sensor,
+    point.adc, point.raw, point.mode
+  ].map(csvCell).join(","));
+  const csv = [headings.join(","), ...rows].join("\r\n");
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `wind-history-${from}-to-${to}.csv`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function openExportDialog() {
+  const available = visibleReadings();
+  const firstDate = available.length ? dateKey(available[0].time) : dateKey(new Date());
+  const lastDate = available.length ? dateKey(available.at(-1).time) : dateKey(new Date());
+  $("export-from").value = firstDate;
+  $("export-to").value = lastDate;
+  $("export-from").max = dateKey(new Date());
+  $("export-to").max = dateKey(new Date());
+  $("export-error").textContent = "";
+  $("export-dialog").showModal();
+}
+
+function exportDateRange(event) {
+  event.preventDefault();
+  const from = $("export-from").value;
+  const to = $("export-to").value;
+  const error = $("export-error");
+  if (!from || !to || from > to) {
+    error.textContent = "Choose a valid start and end date.";
+    return;
+  }
+
+  const points = visibleReadings().filter((point) => {
+    const key = dateKey(point.time);
+    return key >= from && key <= to;
+  });
+  if (!points.length) {
+    error.textContent = "No retained readings are available in that date range.";
+    return;
+  }
+
+  downloadCsv(points, from, to);
+  $("export-dialog").close();
+  setActionStatus(`Exported ${points.length} readings from ${from} to ${to}.`);
 }
 
 function moveSelectedDate(days) {
@@ -160,6 +283,9 @@ function bindHistoryControls() {
   $("next-day").addEventListener("click", () => moveSelectedDate(1));
   $("graph-tab").addEventListener("click", () => { setHistoryView("graph"); charts.resizeHistory(); });
   $("table-tab").addEventListener("click", () => setHistoryView("table"));
+  $("clear-today-button").addEventListener("click", clearToday);
+  $("export-button").addEventListener("click", openExportDialog);
+  $("export-form").addEventListener("submit", exportDateRange);
 }
 
 function bindPageControls() {
