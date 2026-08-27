@@ -164,6 +164,7 @@ function updateAdminControls() {
   const signedIn = adminSessionIsValid();
   $("admin-login-button").hidden = signedIn;
   $("admin-signout-button").hidden = !signedIn;
+  $("clear-today-button").hidden = !signedIn;
   $("admin-session-label").textContent = signedIn
     ? `Administrator: ${adminSession.email}` : "Administrator signed out";
 }

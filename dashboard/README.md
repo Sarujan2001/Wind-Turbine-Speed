@@ -55,7 +55,8 @@ disabled until the backend retains enough data to support them.
 
 - **Clear today** requires Firebase administrator sign-in, counts today's
   retained records, asks for confirmation, and permanently deletes only those
-  `/history` slots. `/live` is not deleted, so new sensor readings continue.
+  `/history` slots. The button is hidden until authentication succeeds. `/live`
+  is not deleted, so new sensor readings continue.
 - **Export CSV** accepts an inclusive start and end date and exports every
   retained reading available in that range. With the current one-hour Firebase
   ring, the export cannot include readings that have already been overwritten
