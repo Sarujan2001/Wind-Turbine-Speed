@@ -21,10 +21,6 @@ window.WIND_DASHBOARD_CONFIG = {
   firebaseDatabaseUrl:
     "https://spl-wind-live-default-rtdb.asia-southeast1.firebasedatabase.app",
 
-  // Optional convenience only. Leave blank to enter the key in the secure
-  // administrator dialog each session. Never put a password in this file.
-  firebaseWebApiKey: "",
-
   refreshSeconds: 2,
 
   offlineAfterSeconds: 12

@@ -9,7 +9,7 @@
     <link rel="icon" href="data:,">
     <link rel="preconnect" href="https://unpkg.com">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
-    <link rel="stylesheet" href="styles.css?v=wind-station-3">
+    <link rel="stylesheet" href="styles.css?v=wind-station-5">
   </head>
   <body>
     <a class="skip-link" href="#dashboard">Skip to dashboard</a>
@@ -93,8 +93,8 @@
         <section class="panel history-panel" id="history" aria-labelledby="history-title">
           <div class="panel-heading panel-heading--responsive"><div><p class="eyebrow">Recorded telemetry</p><h2 id="history-title">Wind History</h2></div><div class="date-controls"><button id="previous-day" type="button">‹ Previous day</button><input id="history-date" type="date" aria-label="History date"><button id="next-day" type="button">Next day ›</button></div></div>
           <div class="history-actions">
-            <div class="history-actions__buttons"><button class="button button--secondary" id="export-button" type="button">Export CSV</button><button class="button button--secondary" id="admin-login-button" type="button">Admin sign in</button><button class="button button--secondary" id="admin-signout-button" type="button" hidden>Sign out</button><button class="button button--danger" id="clear-today-button" type="button" hidden>Clear today</button></div>
-            <div class="history-actions__status"><strong id="admin-session-label">Administrator signed out</strong><p id="history-action-status" role="status" aria-live="polite">Administrator sign-in is required to permanently delete Firebase history.</p></div>
+            <div class="history-actions__buttons"><button class="button button--secondary" id="export-button" type="button">Export CSV</button><button class="button button--secondary" id="admin-login-button" type="button">Unlock controls</button><button class="button button--secondary" id="admin-signout-button" type="button" hidden>Lock controls</button><button class="button button--danger" id="clear-today-button" type="button" hidden>Clear today</button></div>
+            <div class="history-actions__status"><strong id="admin-session-label">Dashboard controls locked</strong><p id="history-action-status" role="status" aria-live="polite">Unlock with the local PIN to reset this browser's daily results.</p></div>
           </div>
           <div class="history-summary" role="table" aria-label="Selected date wind summary">
             <div class="history-summary__row history-summary__head" role="row"><span>Metric</span><span>Maximum</span><span>Minimum</span><span>Average</span></div>
@@ -119,16 +119,14 @@
 
     <dialog id="admin-dialog">
       <form id="admin-form">
-        <div class="dialog-heading"><h2>Administrator sign-in</h2><button class="icon-button icon-button--light" id="admin-cancel" type="button" aria-label="Close administrator sign-in">×</button></div>
-        <p>Use a Firebase Email/Password account whose UID has write permission for <code>/history</code>.</p>
+        <div class="dialog-heading"><h2>Unlock dashboard controls</h2><button class="icon-button icon-button--light" id="admin-cancel" type="button" aria-label="Close PIN entry">×</button></div>
+        <p>Enter the five-digit local PIN. Three incorrect attempts lock PIN entry on this browser for 15 minutes.</p>
         <div class="admin-fields">
-          <label>Firebase Web API key<input id="admin-api-key" type="password" autocomplete="off" spellcheck="false" required></label>
-          <label>Email<input id="admin-email" type="email" autocomplete="username" required></label>
-          <label>Password<input id="admin-password" type="password" autocomplete="current-password" required></label>
+          <label>Five-digit PIN<input id="admin-pin" type="password" inputmode="numeric" pattern="[0-9]{5}" minlength="5" maxlength="5" autocomplete="one-time-code" required></label>
         </div>
-        <p class="credential-note">Credentials and tokens stay in this page's memory only and are cleared when the page closes.</p>
+        <p class="credential-note" id="pin-attempts">3 attempts remaining.</p>
         <p class="form-error" id="admin-error" role="alert"></p>
-        <div class="dialog-actions"><button class="button button--secondary" type="button" onclick="document.getElementById('admin-cancel').click()">Cancel</button><button class="button" id="admin-submit" type="submit">Sign in securely</button></div>
+        <div class="dialog-actions"><button class="button button--secondary" type="button" onclick="document.getElementById('admin-cancel').click()">Cancel</button><button class="button" id="admin-submit" type="submit">Unlock</button></div>
       </form>
     </dialog>
 
@@ -144,7 +142,7 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" integrity="sha384-vsrfeLOOY6KuIYKDlmVH5UiBmgIdB1oEf7p01YgWHuqmOHfZr374+odEv96n9tNC" crossorigin="anonymous"></script>
-    <script src="config.js?v=wind-station-3"></script>
-    <script type="module" src="app.js?v=wind-station-3"></script>
+    <script src="config.js?v=wind-station-5"></script>
+    <script type="module" src="app.js?v=wind-station-5"></script>
   </body>
 </html>
