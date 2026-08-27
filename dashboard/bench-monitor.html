@@ -143,8 +143,9 @@
         </select></label>
       <label class="fld">Window
         <select id="window">
-          <option value="60">Last 60</option>
-          <option value="300" selected>Last 300</option>
+          <option value="30">Last 30 s</option>
+          <option value="60" selected>Last 60 s</option>
+          <option value="300">Last 5 min</option>
           <option value="0">Everything</option>
         </select></label>
       <button id="clear">Clear</button>
@@ -196,8 +197,8 @@
 
 var LINE_RE = /ADC=([\d.]+)\s*\|\s*WIND_ADC=([\d.]+)\s*V\s*\|\s*SENSOR=([\d.]+)\s*V\s*\|\s*WIND=([\d.]+)\s*m\/s\s*\|\s*([\d.]+)\s*km\/h/;
 var GUST_WINDOW_MS = 3000;
-var MAX_POINTS = 5000;
-var SAMPLE_PERIOD_MS = 630;   // firmware prints roughly every 0.63 s
+var MAX_POINTS = 20000;       // ~33 min at the firmware's 10 lines per second
+var SAMPLE_PERIOD_MS = 100;   // must match PUBLISH_INTERVAL_MS in main.cpp
 
 var $ = function (id) { return document.getElementById(id); };
 var samples = [];      // { t, raw, adc, sensor, ms, kmh }
@@ -308,9 +309,15 @@ function queueRedraw() {
   requestAnimationFrame(function () { redrawQueued = false; render(); });
 }
 
+// Bounded by time rather than by a sample count, so the window keeps its meaning
+// whatever rate the firmware prints at.
 function visible() {
-  var n = parseInt($("window").value, 10);
-  return n > 0 ? samples.slice(-n) : samples;
+  var secs = parseInt($("window").value, 10);
+  if (!(secs > 0) || !latest) return samples;
+  var cutoff = latest.t - secs * 1000;
+  var start = samples.length;
+  while (start > 0 && samples[start - 1].t >= cutoff) start--;
+  return samples.slice(start);
 }
 
 function gust() {

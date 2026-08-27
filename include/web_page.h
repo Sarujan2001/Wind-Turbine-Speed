@@ -115,8 +115,9 @@ static const char DASHBOARD_HTML[] PROGMEM = R"HTMLPAGE(<!doctype html>
     <div class="bar">
       <label class="fld">Window
         <select id="win">
-          <option value="60">Last 60</option>
-          <option value="120" selected>Last 120</option>
+          <option value="10">Last 10 s</option>
+          <option value="30">Last 30 s</option>
+          <option value="60" selected>Last 60 s</option>
           <option value="0">Everything</option>
         </select></label>
       <button id="clear">Clear</button>
@@ -168,8 +169,11 @@ static const char DASHBOARD_HTML[] PROGMEM = R"HTMLPAGE(<!doctype html>
 <script>
 "use strict";
 var $=function(i){return document.getElementById(i)};
-var samples=[],cal=[],latest=null,fails=0,seeded=false,period=500,redraw=false;
-var MAXPTS=3000;
+var samples=[],cal=[],latest=null,fails=0,seeded=false,period=100,redraw=false;
+/* The session log is bounded by time rather than by a sample count, so raising
+   the board's publish rate shortens neither it nor the chart window. */
+var LOGSPAN=1800000;
+var MAXPTS=20000;
 var U={kmh:{k:"kmh",l:"km/h",d:1},ms:{k:"ms",l:"m/s",d:2},sensor:{k:"sensor",l:"V",d:3}};
 function unit(){return U[$("units").value]}
 
@@ -186,20 +190,33 @@ function fmtUp(ms){
 
 async function seed(){
   try{
-    var r=await fetch("api/history",{cache:"no-store"});
-    if(!r.ok)throw 0;
-    var d=await r.json();
-    period=d.period||500;
+    var rs=await Promise.all([fetch("api/history",{cache:"no-store"}),
+                              fetch("api/live",{cache:"no-store"})]);
+    if(!rs[0].ok||!rs[1].ok)throw 0;
+    var d=await rs[0].json(),l=await rs[1].json();
+    period=d.period||period;
+    /* The stored trace carries no timestamps, so its points are placed on the
+       same uptime clock the live readings use, ending one period before the
+       reading fetched alongside it. Numbering them from zero instead left the
+       exported CSV jumping by the whole uptime at the seed/live boundary. */
+    var n=d.kmh.length,base=l.up-n*period;
     samples.length=0;
-    for(var i=0;i<d.kmh.length;i++){
-      samples.push({t:i*period,kmh:d.kmh[i],ms:d.kmh[i]/3.6,
+    for(var i=0;i<n;i++){
+      samples.push({t:base+i*period,kmh:d.kmh[i],ms:d.kmh[i]/3.6,
                     sensor:d.sensor[i],adc:d.sensor[i]/3,raw:0});
     }
     seeded=true;
   }catch(e){/* history is optional; live polling still works */}
 }
 
+/* One request at a time. The board serves a single client, and each cloud
+   upload stalls it for 80-250 ms, so a 100 ms timer with no guard would leave
+   several polls in flight at once and exhaust the browser's sockets. */
+var inflight=false;
+
 async function poll(){
+  if(inflight)return;
+  inflight=true;
   try{
     var r=await fetch("api/live",{cache:"no-store"});
     if(!r.ok)throw new Error("HTTP "+r.status);
@@ -209,13 +226,17 @@ async function poll(){
     period=d.period||period;
     latest=d;
     samples.push({t:d.up,raw:d.raw,adc:d.adc,sensor:d.sensor,ms:d.ms,kmh:d.kmh});
-    if(samples.length>MAXPTS)samples.shift();
+    while(samples.length>1&&(samples.length>MAXPTS||d.up-samples[0].t>LOGSPAN)){
+      samples.shift();
+    }
     $("s-up").textContent=fmtUp(d.up);
     $("net").textContent="Device "+(d.mode||"")+" at "+(d.ip||location.host)+
       " · publishing every "+(period/1000).toFixed(1)+" s";
     queue();
   }catch(e){
     if(++fails>=3)setState("err","No response");
+  }finally{
+    inflight=false;
   }
 }
 
@@ -226,8 +247,9 @@ function queue(){
 }
 
 function view(){
-  var n=parseInt($("win").value,10);
-  return n>0?samples.slice(-n):samples;
+  var secs=parseInt($("win").value,10);
+  if(!(secs>0))return samples;
+  return samples.slice(-Math.max(2,Math.round(secs*1000/period)));
 }
 
 function render(){
@@ -391,7 +413,7 @@ window.addEventListener("resize",queue);
 
 $("foot").textContent="SEN0170 0-5 V → 20k/10k divider → D1/GPIO3 · wind = sensor V × 6 m/s";
 
-seed().then(function(){render();poll();setInterval(poll,500)});
+seed().then(function(){render();poll();setInterval(poll,100)});
 </script>
 </body>
 </html>

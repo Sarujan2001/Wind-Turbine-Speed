@@ -2,6 +2,7 @@
 
 **Status date:** 24 August 2026
 **Project:** SPL Wind Speed Logger / Wind Turbine Site Test
+**Cloud relay:** Firebase Realtime Database
 
 ---
 
@@ -28,23 +29,69 @@ NAT and firewalls without any configuration. The hosted page then reads from
 that service, not from the board.
 
 ```text
-ESP32  --(outbound HTTPS)-->  ThingSpeak  <--(HTTPS)--  GitHub Pages dashboard
-                                                          (any browser, anywhere)
+ESP32  --(outbound HTTPS)-->  Firebase RTDB  --(server-sent events)-->  Pages dashboard
+                                                                        (any browser, anywhere)
 ```
 
-This is what `dashboard/` was already written to do. Three access routes now
-coexist, and each suits a different situation:
+Three access routes coexist, and each suits a different situation:
 
 | Route | Page | Needs | Latency | Use when |
 |---|---|---|---|---|
-| USB serial | `dashboard/bench-monitor.html` | Cable + Chrome/Edge | ~0.5 s | At the bench, calibrating |
-| Board's own Wi-Fi | served by the ESP32 at `/` | Same network or its hotspot | ~0.5 s | On site, standing near the turbine |
-| Cloud | `dashboard/index.html` on Pages | Board has internet | ~20 s | Anywhere in the world |
+| USB serial | `dashboard/bench-monitor.html` | Cable + Chrome/Edge | ~0.1 s | At the bench, calibrating |
+| Board's own Wi-Fi | served by the ESP32 at `/` | Same network or its hotspot | ~0.1 s | On site, standing near the turbine |
+| Cloud | `dashboard/index.html` on Pages | Board has internet | ~2 s | Anywhere in the world |
 
-The cloud route is the slowest by a wide margin, and that is a deliberate
-constraint, not a bug — see section 5.
+Firebase pushes each write straight out to every open dashboard, so the cloud
+route is a live feed rather than a poll — see section 7 for what that costs.
 
-## 3. Firmware setup
+## 3. Firebase setup (console work, done once)
+
+### Step 1 — Create the project and the database
+
+1. At <https://console.firebase.google.com> create a project. Analytics is not
+   needed.
+2. **Build → Realtime Database → Create database.** Pick the region nearest the
+   site (`asia-southeast1` for Australia) and start in **locked mode** — the
+   rules in step 3 open exactly what is needed and nothing more.
+3. Note the URL shown above the data tree. It looks like
+   `https://your-project-default-rtdb.asia-southeast1.firebasedatabase.app`.
+
+Realtime Database, not Firestore: the board writes one small document every
+couple of seconds, which is what RTDB is cheap at, and its REST API streams to
+the browser without a client library.
+
+### Step 2 — Give the board its own account
+
+1. **Build → Authentication → Get started → Email/Password → Enable.**
+2. **Users → Add user.** Any address will do (`logger@spl.invalid`); it is never
+   emailed. Use a long random password.
+3. Copy the account's **User UID** from the users table.
+
+The board signs in as this account and writes with the ID token it gets back.
+That is what lets the rules accept writes from the logger and refuse everyone
+else.
+
+### Step 3 — Paste the rules
+
+Open **Realtime Database → Rules**, paste the contents of
+[firebase/database.rules.json](firebase/database.rules.json), replace
+`DEVICE_UID` with the UID from step 2, and publish. The shape of it:
+
+```json
+"live":    { ".read": true, ".write": "auth != null && auth.uid === 'DEVICE_UID'" },
+"history": { ".read": true, ".write": "auth != null && auth.uid === 'DEVICE_UID'" }
+```
+
+World-readable, board-writable, everything else shut. Public reads are what let
+the static dashboard work with no key in the page; read section 7 before
+deciding that is acceptable.
+
+### Step 4 — Collect the four values
+
+**Project settings → General** holds the **Web API key**. Together with the
+database URL and the account details, that is everything `secrets.h` needs.
+
+## 4. Firmware setup
 
 ### Step 1 — Fill in the credentials
 
@@ -53,44 +100,38 @@ Edit `include/secrets.h` (already created, and excluded from Git):
 ```cpp
 constexpr char WIFI_SSID[] = "your network";
 constexpr char WIFI_PASSWORD[] = "your password";
-constexpr char THINGSPEAK_WRITE_API_KEY[] = "your write key";
+
+constexpr char FIREBASE_WEB_API_KEY[] = "AIza...";
+constexpr char FIREBASE_DATABASE_URL[] =
+    "https://your-project-default-rtdb.asia-southeast1.firebasedatabase.app";
+constexpr char FIREBASE_DEVICE_EMAIL[] = "logger@spl.invalid";
+constexpr char FIREBASE_DEVICE_PASSWORD[] = "the password from step 2";
 ```
+
+The database URL must have no trailing slash, and the password is placed into a
+JSON body as-is, so avoid double quotes and backslashes in it.
 
 At a site with no Wi-Fi, a phone hotspot works — use its name and password.
 
-### Step 2 — Create the ThingSpeak channel
-
-Sign up at thingspeak.com, create a channel, and enable these fields in order:
-
-| Field | Contents |
-|---|---|
-| 1 | Wind speed, m/s |
-| 2 | Wind speed, km/h |
-| 3 | WIND_ADC voltage |
-| 4 | Sensor voltage |
-| 5 | Raw ADC count |
-
-Set the channel to **public** under Sharing, so the dashboard can read it
-without a key. Copy the **Write API Key** into `secrets.h` and note the numeric
-**Channel ID**.
-
-### Step 3 — Turn both switches on
+### Step 2 — Check both switches are on
 
 ```cpp
 // include/wifi_config.h
-#define WIFI_JOIN_NETWORK 1    // was 0 - the board needs internet to upload
+#define WIFI_JOIN_NETWORK 1    // the board needs internet to upload
 
 // include/cloud_config.h
-#define CLOUD_CONFIGURED 1     // was 0
+#define CLOUD_CONFIGURED 1
 ```
 
 `WIFI_JOIN_NETWORK 1` still serves the local dashboard on the network it joins,
-so you keep the fast local view as well as the cloud feed. If it cannot join,
-it falls back to its own hotspot after 15 seconds — but note that in hotspot
-mode there is no internet, so cloud uploads stop until it can reach a network
-again.
+so you keep the fast local view as well as the cloud feed. If it cannot join, it
+falls back to its own hotspot after 15 seconds — but in hotspot mode there is no
+internet, so uploads stop until it can reach a network again.
 
-### Step 4 — Rebuild and upload
+`include/cloud_config.h` also holds the cadences: `CLOUD_LIVE_INTERVAL_MS`
+(2000), `CLOUD_HISTORY_INTERVAL_MS` (15000) and `CLOUD_HISTORY_SLOTS` (240).
+
+### Step 3 — Rebuild and upload
 
 ```powershell
 ~/.platformio/penv/Scripts/pio.exe run -t upload
@@ -99,73 +140,122 @@ again.
 Close any serial monitor and disconnect the browser bench monitor first — only
 one program can hold the COM port.
 
-## 4. Publishing the dashboard
+### Step 4 — Confirm it is publishing
 
-### Step 1 — Point the dashboard at the channel
+On the serial monitor, a healthy start looks like:
+
+```text
+Connected. Dashboard: http://192.168.1.42
+Dashboard ready.
+Cloud relay: https://your-project-default-rtdb.asia-southeast1.firebasedatabase.app
+CLOUD signed in.
+```
+
+Failures are printed too. `CLOUD sign-in failed` points at the four Firebase
+values in `secrets.h`; `CLOUD write failed: HTTP 401` points at the UID in the
+rules. In the console, the data tree should show `/live` changing every two
+seconds.
+
+## 5. Publishing the dashboard
+
+### Step 1 — Point the dashboard at the database
 
 Edit `dashboard/config.js`:
 
 ```js
-thingSpeakChannelId: 1234567,   // your numeric channel ID
+firebaseDatabaseUrl: "https://your-project-default-rtdb.asia-southeast1.firebasedatabase.app",
 siteName: "SPL Wind Turbine Test Site",
-latitude: -27.4698,             // set these to the real site
-longitude: 153.0251,
+latitude: -38.33920835101432,
+longitude: 144.7383156116512,
 ```
 
-While `thingSpeakChannelId` stays `null` the page runs a clearly-labelled
+While `firebaseDatabaseUrl` stays `null` the page runs a clearly-labelled
 demonstration feed, so it is obvious when it is not showing real data.
 
-### Step 2 — Create the GitHub repository
+No API key belongs in this file. Reads are anonymous, which is exactly why the
+rules allow public reads of those two paths.
 
-`gh` is not installed on this machine, so create it through the website:
-new repository under the **Sarujan2001** account, no README, no `.gitignore`
-(this project already has one).
-
-### Step 3 — Push
+### Step 2 — Push
 
 ```powershell
-git remote add origin https://github.com/Sarujan2001/wind-turbine-testing.git
-git branch -M main
-git push -u origin main
+git push
 ```
 
-### Step 4 — Enable Pages
-
-In the repository: **Settings → Pages → Build and deployment → Source →
-GitHub Actions**. The workflow at `.github/workflows/pages.yml` deploys only
-the `dashboard/` folder, so the firmware and project notes are not served.
-
-The site appears at:
+Pages is already configured: `.github/workflows/pages.yml` deploys the
+`dashboard/` folder on every push that touches it, and nothing else is served.
+The site is at:
 
 ```text
-https://sarujan2001.github.io/wind-turbine-testing/
+https://sarujan2001.github.io/Wind-Turbine-Speed/
 ```
 
-Every later push that touches `dashboard/` redeploys it automatically.
+## 6. What is stored
 
-## 5. Things to know before relying on it
+```text
+/live                        the latest reading, overwritten every 2 s
+  ts       1756000000000     server timestamp, ms
+  kmh      18.4
+  ms       5.11
+  gust     21.2              peak over the last 3 s, measured on the board
+  adc      0.284             volts at D1 / GPIO3
+  sensor   0.852             volts before the divider
+  raw      352               mean ADC count
+  up       1843              seconds since boot
+  mode     "on your network"
 
-**The cloud feed is slow, by design.** The free ThingSpeak tier enforces a
-15-second minimum between updates; the firmware uses 20 s. So the worldwide view
-lags reality by up to 20 seconds and cannot show gusts. Gust capture needs the
-local routes, which run at 0.5 s. Do not use the cloud feed for anything where
-short-term peaks matter.
+/history/0 .. /history/239   one point every 15 s, a ring covering one hour
+  ts, kmh, ms, sensor
+  gust                       peak across that whole 15 s gap
+```
 
-**Each upload briefly stalls the local dashboard.** The HTTPS POST blocks for a
-second or two while it completes. At 20-second intervals that is a visible
-hiccup on the local page, not a fault.
+The history slots are a ring — slot `n % 240` is overwritten — so storage is
+bounded at roughly 30 KB and nothing ever needs pruning. The dashboard reads the
+ring once on load and then follows `/live`, adding a chart point every 15 s.
 
-**A public ThingSpeak channel is genuinely public.** Anyone with the channel
-number can read your wind data. Making it private instead requires a Read API
-key, which would then have to sit in the static page where anyone can view the
-source — so it is effectively public either way. If the data is sensitive, the
+Timestamps use Firebase's `{".sv": "timestamp"}` server value, so the board
+never needs to know the time and every point shares one clock. A reboot restarts
+the ring at slot 0, so slots it has not come back round to can still hold
+readings from a previous run; the dashboard drops anything more than an hour
+older than the newest point it finds.
+
+## 7. Things to know before relying on it
+
+**The cloud feed is a live feed now.** Firebase has no minimum write interval,
+so the board publishes every 2 seconds and each change is pushed to the
+dashboard over server-sent events rather than polled for. Gusts survive the trip
+too: `/live` carries the board's 3-second peak, and each history point carries
+the peak across its 15-second gap. The 0.1 s local routes are still the ones to
+use for calibration work.
+
+**Each upload briefly stalls the local dashboard.** The HTTPS PUT blocks the
+loop for 80-250 ms once the TLS session is up, and 1-2 s for the first write
+after a reconnect or the hourly token renewal. At a 2-second cadence that is a
+visible flicker on the board's own page, not a fault. Raising
+`CLOUD_LIVE_INTERVAL_MS` trades feed latency back for a smoother local page.
+
+**Public read means genuinely public.** Anyone with the database URL can read
+the wind data, exactly as with the old public ThingSpeak channel. Locking reads
+down means putting a key or an auth step into the static page, where anyone can
+read it — so it is effectively public either way. If the data is sensitive, the
 cloud route is the wrong choice.
 
-**The Write API Key must stay on the board.** It lives only in
+**The device password must stay on the board.** It lives only in
 `include/secrets.h`, which `.gitignore` excludes. Never put it in
-`dashboard/config.js` — that file is published to the world. Anyone holding the
-write key can inject false readings into your channel.
+`dashboard/config.js` — that file is published to the world. Anyone holding it
+can inject false readings; to revoke, change that account's password under
+**Authentication → Users** and reflash.
 
-**The board needs mains-grade uptime for continuous logging.** Nothing is
-buffered while offline: readings taken with no internet are lost from the cloud
-record, though the board's own dashboard still shows the last 60 seconds.
+**The board does not verify Firebase's certificate.** `setInsecure()` is used
+because the ESP32 carries no root store, so traffic is encrypted but the server
+identity is unchecked. That is a reasonable trade for wind readings on a test
+rig and the wrong one for anything confidential.
+
+**Nothing is buffered while offline.** Readings taken with no internet are lost
+from the cloud record, though the board's own dashboard still shows the last 60
+seconds.
+
+**Free Spark plan headroom.** 1 GB stored (the ring uses ~30 KB), 10 GB a month
+of downloads, and 100 simultaneous connections. A dashboard tab left open
+continuously streams roughly 250 MB a month, so the practical limit is a few
+dozen permanently-open tabs rather than the write rate. No card is required, and
+a Spark project cannot run up a bill.

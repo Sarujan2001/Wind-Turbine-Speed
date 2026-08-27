@@ -18,6 +18,11 @@ const state = {
   dayReset: loadDayReset()
 };
 const MAX_LOCAL_POINTS = 2200;
+// The board's history ring restarts at slot 0 after a reboot, so slots it has
+// not come back round to still hold readings from a previous run. Anything
+// older than the span the ring is meant to cover is dropped instead of being
+// charted and counted in today's statistics as though it had just arrived.
+const HISTORY_RETENTION_MS = 60 * 60 * 1000;
 let charts;
 let pollTimer = null;
 let eventStream = null;
@@ -145,7 +150,12 @@ async function fetchJson(path) {
 async function loadStoredHistory() {
   const slots = await fetchJson("/history");
   if (!slots) return;
-  Object.values(slots).map(historyReading).filter(Boolean).forEach(mergeReading);
+  const points = Object.values(slots).map(historyReading).filter(Boolean);
+  const newest = points.reduce(
+    (highest, point) => Math.max(highest, point.time.getTime()), 0);
+  points
+    .filter((point) => newest - point.time.getTime() <= HISTORY_RETENTION_MS)
+    .forEach(mergeReading);
   charts.updateMain(visibleReadings());
   renderHistorySelection();
 }
