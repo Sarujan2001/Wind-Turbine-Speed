@@ -27,6 +27,7 @@ constexpr uint8_t WIND_ADC_PIN = D1;  // D1 is GPIO3 (analog-capable)
 constexpr float DIVIDER_MULTIPLIER = 3.0f;
 constexpr float METRES_PER_SECOND_PER_SENSOR_VOLT = 6.0f;
 constexpr float MAX_SENSOR_VOLTAGE = 5.0f;
+constexpr float WIND_ZERO_DEADBAND_MS = 0.15f;
 
 // The ADC is sampled little and often rather than in one blocking burst, so
 // HTTP requests are never left waiting. ~62 samples land in each 500 ms window,
@@ -281,6 +282,7 @@ void loop() {
     current.sensor =
         constrain(current.adc * DIVIDER_MULTIPLIER, 0.0f, MAX_SENSOR_VOLTAGE);
     current.ms = current.sensor * METRES_PER_SECOND_PER_SENSOR_VOLT;
+    if (current.ms < WIND_ZERO_DEADBAND_MS) current.ms = 0.0f;
     current.kmh = current.ms * 3.6f;
 
     pushHistory(current.kmh, current.sensor);
