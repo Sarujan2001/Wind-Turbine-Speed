@@ -1,8 +1,8 @@
 import {
   $, configureStation, dateKey, metresPerSecond, readingsForToday,
   renderHistory, renderReading, setHistoryView, summarise, updateFreshness
-} from "./ui.js?v=wind-station-6";
-import { createCharts } from "./charts.js?v=wind-station-6";
+} from "./ui.js?v=wind-station-7";
+import { createCharts } from "./charts.js?v=wind-station-7";
 
 const config = window.WIND_DASHBOARD_CONFIG;
 const DB = config.firebaseDatabaseUrl?.replace(/\/+$/, "") || null;
@@ -317,7 +317,9 @@ function clearToday() {
   if (state.latest) renderReading(state.latest, summarise(readingsForToday(visible)));
   charts.updateMain(visible);
   renderHistorySelection();
-  setActionStatus(`Dashboard results restarted at ${new Date(now).toLocaleTimeString()}. Firebase was not changed.`);
+  const message = `Dashboard results restarted at ${new Date(now).toLocaleTimeString()}. Firebase was not changed.`;
+  setActionStatus(message);
+  $("admin-session-label").textContent = message;
 }
 
 function csvCell(value) {
@@ -403,6 +405,7 @@ function bindHistoryControls() {
   $("clear-today-button").addEventListener("click", clearToday);
   $("export-button").addEventListener("click", openExportDialog);
   $("export-form").addEventListener("submit", exportDateRange);
+  $("export-cancel").addEventListener("click", () => $("export-dialog").close());
   $("admin-login-button").addEventListener("click", () => openAdminLogin());
   $("admin-signout-button").addEventListener("click", () => lockAdminControls());
   $("admin-form").addEventListener("submit", unlockAdminControls);

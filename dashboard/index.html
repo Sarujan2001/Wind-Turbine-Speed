@@ -13,14 +13,20 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&display=swap">
 
 <!-- Alpine theme -->
-<link rel="stylesheet" href="styles.css?v=wind-station-6">
+<link rel="stylesheet" href="styles.css?v=wind-station-7">
 
 <!-- Leaflet (station map) -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H"
+      crossorigin="anonymous">
+<script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH"
+        crossorigin="anonymous"></script>
 
 <!-- Chart.js (live + history charts) -->
-<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"
+        integrity="sha384-vsrfeLOOY6KuIYKDlmVH5UiBmgIdB1oEf7p01YgWHuqmOHfZr374+odEv96n9tNC"
+        crossorigin="anonymous"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -299,6 +305,7 @@
       <button class="icon-button icon-button--light" type="submit" aria-label="Close">×</button>
     </div>
     <p>Local maintenance actions. Enter the access PIN to unlock.</p>
+    <p><strong>Local reset only:</strong> clearing today's stats does not delete any Firebase records.</p>
 
     <dl class="settings-list">
       <div><dt>Refresh interval</dt><dd id="setting-refresh">--</dd></div>
@@ -316,7 +323,7 @@
 
 <!-- ======================================================== PIN DIALOG -->
 <dialog id="admin-dialog">
-  <form method="dialog" id="admin-form">
+  <form id="admin-form">
     <div class="dialog-heading">
       <h2>Enter access PIN</h2>
     </div>
@@ -324,7 +331,8 @@
 
     <div class="admin-fields">
       <label for="admin-pin">Access PIN
-        <input id="admin-pin" type="password" inputmode="numeric" maxlength="5" autocomplete="off" placeholder="•••••">
+        <input id="admin-pin" type="password" inputmode="numeric" pattern="[0-9]{5}"
+               minlength="5" maxlength="5" autocomplete="off" placeholder="•••••" required>
       </label>
     </div>
     <p class="form-error" id="admin-error" role="alert"></p>
@@ -339,7 +347,7 @@
 
 <!-- ====================================================== EXPORT DIALOG -->
 <dialog id="export-dialog">
-  <form method="dialog" id="export-form">
+  <form id="export-form">
     <div class="dialog-heading">
       <h2>Export CSV</h2>
     </div>
@@ -356,14 +364,15 @@
     <p class="form-error" id="export-error" role="alert"></p>
 
     <div class="dialog-actions">
+      <button type="button" class="button button--secondary" id="export-cancel">Cancel</button>
       <button type="submit" class="button">Download CSV</button>
     </div>
   </form>
 </dialog>
 
 <!-- ========================================================== SCRIPTS -->
-<script src="config.js?v=wind-station-6"></script>
-<script type="module" src="app.js?v=wind-station-6"></script>
+<script src="config.js?v=wind-station-7"></script>
+<script type="module" src="app.js?v=wind-station-7"></script>
 <script>document.getElementById('year').textContent = String(new Date().getFullYear());</script>
 </body>
 </html>
