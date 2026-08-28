@@ -12,8 +12,15 @@
 <link rel="stylesheet" href="https://fonts.cdnfonts.com/css/futura-pt">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&display=swap">
 
-<!-- Alpine theme (drop-in replacement for your old <style> block) -->
-<link rel="stylesheet" href="alpine-theme.css">
+<!-- Alpine theme -->
+<link rel="stylesheet" href="styles.css?v=wind-station-6">
+
+<!-- Leaflet (station map) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- Chart.js (live + history charts) -->
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -35,15 +42,12 @@
     </nav>
 
     <div class="topbar__actions">
-      <p class="live-state is-online" id="connection-state">
+      <p class="live-state is-online" id="live-state">
         <i class="state-dot" aria-hidden="true"></i>
         <span id="connection-label">Live</span>
       </p>
-      <button class="icon-button" type="button" id="refresh-button" aria-label="Refresh data">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.65 6.35A8 8 0 1 0 19.73 14h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4z"/></svg>
-      </button>
       <button class="icon-button" type="button" id="settings-button" aria-label="Open controls">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5A3.5 3.5 0 1 1 15.5 12A3.5 3.5 0 0 1 12 15.5m7.43-2.53c.04-.32.07-.64.07-.97s-.03-.66-.07-1l2.11-1.63a.5.5 0 0 0 .12-.64l-2-3.46a.5.5 0 0 0-.6-.22l-2.49 1a7.3 7.3 0 0 0-1.69-.98l-.38-2.65A.49.49 0 0 0 14 2h-4a.49.49 0 0 0-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1a.5.5 0 0 0-.6.22l-2 3.46a.5.5 0 0 0 .12.64L4.57 11c-.04.34-.07.67-.07 1s.03.65.07.97l-2.11 1.66a.5.5 0 0 0-.12.64l2 3.46c.14.24.44.32.6.22l2.49-1c.52.39 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.16.1.46.02.6-.22l2-3.46a.5.5 0 0 0-.12-.64z"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5A3.5 3.5 0 1 1 15.5 12A3.5 3.5 0 0 1 12 15.5m7.43-2.53c.04-.32.07-.64.07-.97s-.03-.66-.07-1l2.11-1.63a.5.5 0 0 0 .12-.64l-2-3.46a.5.5 0 0 0-.6-.22l-2.49 1a7.3 7.3 0 0 0-1.69-.98l-.38-2.65A.49.49 0 0 0 14 2h-4a.49.49 0 0 0-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1a.5.5 0 0 0-.6.22l-2 3.46a.5.5 0 0 0 .12.64L4.57 11c-.04.34-.07.67-.07 1s.03.65.07.97l-2.11 1.66a.5.5 0 0 0-.12.64l2 3.46c.14.24.44.32.6.22l2.49-1c.52.39 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69.98l2.49 1c.16.1.46.02.6-.22l2-3.46a.5.5 0 0 0-.12-.64z"/></svg>
       </button>
     </div>
   </div>
@@ -55,24 +59,25 @@
     <div>
       <p class="eyebrow">LinenHub Wind Monitoring</p>
       <div class="station-title-row">
-        <h1>SPL Wind Monitoring Station</h1>
+        <h1 id="station-name">Wind Monitoring Station</h1>
         <span class="station-badge is-online" id="station-badge">
-          <i aria-hidden="true"></i><span id="station-badge-label">Online</span>
+          <i aria-hidden="true"></i><span>Online</span>
         </span>
       </div>
-      <p class="station-location">Victoria, Australia · SPL Wind Turbine Test Site</p>
+      <p class="station-location" id="station-location">—</p>
       <p class="station-meta">
-        <span>Station ID WIND-001</span>
-        <span>Device Seeed XIAO ESP32-C3</span>
-        <span>Lat −38.33921, Lon 144.73832</span>
-        <span>Sampling 1 s · 3 s gust window</span>
+        <span id="station-id">Station ID: —</span>
+        <span>Device <b id="sensor-device">—</b></span>
+        <span id="station-coordinates">Coordinates: —</span>
+        <span id="station-elevation">Elevation: —</span>
       </p>
     </div>
 
     <div class="station-update">
       <span>Latest reading</span>
-      <strong id="last-reading">— m/s</strong>
-      <time id="last-reading-time" datetime="">awaiting data</time>
+      <strong><b id="wind-ms">--</b> m/s</strong>
+      <time id="station-update-time" datetime="">awaiting data</time>
+      <time id="station-last-update">—</time>
     </div>
   </div>
 </section>
@@ -85,13 +90,13 @@
       <p class="eyebrow">Current wind speed</p>
       <h2 class="sr-only" id="current-wind-title">Current wind speed</h2>
       <p class="primary-reading" id="primary-reading">
-        <span id="speed-value">0.0</span>
-        <small>m/s</small>
+        <span id="gauge-value">--</span>
+        <small>m/s · <b id="wind-kmh">--</b> km/h</small>
       </p>
-      <p class="secondary-reading">3 s gust <span id="gust-value">0.0</span> m/s</p>
+      <p class="secondary-reading">3 s gust <span id="metric-gust">--</span> m/s</p>
       <p class="wind-classification">
         <span class="classification-mark" aria-hidden="true"></span>
-        <span id="beaufort-label">Calm — Beaufort 0</span>
+        <span id="wind-category">Waiting for measurement</span>
       </p>
     </div>
 
@@ -99,7 +104,7 @@
       <svg class="gauge" viewBox="0 0 220 150" role="img" aria-label="Wind speed gauge">
         <path class="gauge__track" d="M20 120a90 90 0 0 1 180 0" pathLength="100"/>
         <path class="gauge__range gauge__range--calm" d="M20 120a90 90 0 0 1 180 0" pathLength="100"/>
-        <path class="gauge__range gauge__range--active" id="gauge-arc" d="M20 120a90 90 0 0 1 180 0" pathLength="100"/>
+        <path class="gauge__range gauge__range--active" id="gauge-progress" d="M20 120a90 90 0 0 1 180 0" pathLength="100"/>
         <g class="gauge__needle" id="gauge-needle">
           <line x1="110" y1="120" x2="110" y2="46"/>
           <circle cx="110" cy="120" r="6"/>
@@ -108,7 +113,7 @@
         <text x="110" y="26" text-anchor="middle">15</text>
         <text x="202" y="140" text-anchor="end">30</text>
       </svg>
-      <p class="gauge-value"><strong id="gauge-readout">0.0</strong><span>m/s</span></p>
+      <p class="gauge-value"><strong id="gauge-category">--</strong></p>
       <p>Scale 0–30 m/s · needle shows sensor speed</p>
     </div>
   </section>
@@ -117,35 +122,25 @@
   <section class="metric-strip" aria-label="Key metrics">
     <div class="metric-card">
       <span>Current</span>
-      <strong><b id="metric-current">0.0</b> m/s</strong>
+      <strong><b id="metric-wind">--</b> m/s</strong>
       <small>Latest 1 s sample</small>
     </div>
     <div class="metric-card">
-      <span>3 s gust</span>
-      <strong><b id="metric-gust">0.0</b> m/s</strong>
-      <small>Peak of last 3 s</small>
-    </div>
-    <div class="metric-card">
       <span>Today's max</span>
-      <strong><b id="metric-max">0.0</b> m/s</strong>
+      <strong><b id="metric-max">--</b> m/s</strong>
       <small>Since local midnight</small>
     </div>
     <div class="metric-card">
       <span>Today's average</span>
-      <strong><b id="metric-avg">0.0</b> m/s</strong>
+      <strong><b id="metric-average">--</b> m/s</strong>
       <small>Rolling mean</small>
     </div>
     <div class="metric-card">
       <span>Sensor status</span>
-      <strong class="metric-status is-online" id="metric-status">
-        <i aria-hidden="true"></i><span id="metric-status-label">Online</span>
+      <strong class="metric-status is-online" id="metric-sensor">
+        <i aria-hidden="true"></i>Online
       </strong>
-      <small>Offline after 45 s silence</small>
-    </div>
-    <div class="metric-card">
-      <span>Reading age</span>
-      <strong><b id="metric-age">0</b> s</strong>
-      <small>Time since last packet</small>
+      <small id="metric-age">Waiting for data</small>
     </div>
   </section>
 
@@ -158,13 +153,12 @@
         <p>Rolling window from the retained history ring</p>
       </div>
       <div class="range-tabs" id="range-tabs" role="group" aria-label="Chart range">
-        <button type="button" class="is-active" data-range="30">30 min</button>
-        <button type="button" data-range="60">60 min</button>
-        <button type="button" data-range="360">6 h</button>
-        <button type="button" data-range="1440">24 h</button>
+        <button type="button" class="is-active" data-range="live">Live</button>
+        <button type="button" data-range="15m">15 min</button>
+        <button type="button" data-range="1h">1 h</button>
       </div>
     </div>
-    <div class="chart chart--main"><canvas id="live-chart"></canvas></div>
+    <div class="chart chart--main"><canvas id="wind-chart"></canvas></div>
     <p class="chart-legend">
       <span><i class="legend-wind" aria-hidden="true"></i>Wind speed</span>
       <span><i class="legend-gust" aria-hidden="true"></i>Gust</span>
@@ -179,14 +173,14 @@
           <p class="eyebrow">Daily summary</p>
           <h2 id="summary-title">Today at a glance</h2>
         </div>
-        <time id="summary-time" datetime="">—</time>
       </div>
       <dl class="data-list">
-        <div><dt>Maximum gust</dt><dd id="summary-max">— m/s</dd></div>
-        <div><dt>Average speed</dt><dd id="summary-avg">— m/s</dd></div>
-        <div><dt>Minimum speed</dt><dd id="summary-min">— m/s</dd></div>
-        <div><dt>Samples collected</dt><dd id="summary-samples">—</dd></div>
-        <div><dt>Beaufort peak</dt><dd id="summary-beaufort">—</dd></div>
+        <div><dt>Maximum speed</dt><dd><b id="summary-max">--</b> m/s</dd></div>
+        <div><dt>Average speed</dt><dd><b id="summary-average">--</b> m/s</dd></div>
+        <div><dt>Minimum speed</dt><dd><b id="summary-min">--</b> m/s</dd></div>
+        <div><dt>Peak gust</dt><dd><b id="summary-gust">--</b> m/s</dd></div>
+        <div><dt>Samples collected</dt><dd id="summary-samples">0</dd></div>
+        <div><dt>System runtime</dt><dd id="summary-runtime">--</dd></div>
       </dl>
       <p class="data-note">Values are derived from retained samples in the current local day.</p>
     </section>
@@ -197,16 +191,16 @@
           <p class="eyebrow">Diagnostics</p>
           <h2 id="health-title">Sensor health</h2>
         </div>
-        <p class="inline-state is-online" id="health-state"><i aria-hidden="true"></i>Nominal</p>
+        <p class="inline-state is-online" id="sensor-status"><i aria-hidden="true"></i>Online</p>
       </div>
       <dl class="data-list">
-        <div><dt>Sensor voltage</dt><dd id="health-voltage">— V</dd></div>
-        <div><dt>ADC raw value</dt><dd id="health-adc">—</dd></div>
-        <div><dt>System uptime</dt><dd id="health-uptime">—</dd></div>
-        <div><dt>Transport mode</dt><dd id="health-mode">Stream</dd></div>
-        <div><dt>Packet age</dt><dd id="health-age">— s</dd></div>
+        <div><dt>Sensor voltage</dt><dd><b id="sensor-voltage">--</b> V</dd></div>
+        <div><dt>ADC voltage</dt><dd><b id="adc-voltage">--</b> V</dd></div>
+        <div><dt>ADC raw value</dt><dd id="adc-reading">--</dd></div>
+        <div><dt>Transport mode</dt><dd id="sensor-connection">--</dd></div>
+        <div><dt>Last packet</dt><dd id="sensor-last-reading">--</dd></div>
       </dl>
-      <p class="data-note">Fields map to the firmware keys <code>sensor</code>, <code>raw</code> and <code>up</code>.</p>
+      <p class="data-note">Fields map to the firmware keys <code>sensor</code>, <code>adc</code>, <code>raw</code> and <code>up</code>.</p>
     </section>
   </div>
 
@@ -219,49 +213,48 @@
         <p>Load a past date and export the visible range</p>
       </div>
       <div class="date-controls">
-        <button type="button" id="date-prev" aria-label="Previous day">‹ Prev</button>
+        <button type="button" id="previous-day" aria-label="Previous day">‹ Prev</button>
         <input type="date" id="history-date" aria-label="History date">
-        <button type="button" id="date-next" aria-label="Next day">Next ›</button>
+        <button type="button" id="next-day" aria-label="Next day">Next ›</button>
       </div>
     </div>
 
     <div class="history-actions">
       <div class="history-actions__buttons">
-        <button type="button" class="button button--secondary" data-hours="24">Last 24 h</button>
-        <button type="button" class="button button--secondary" data-hours="48">Last 48 h</button>
-        <button type="button" class="button" id="export-csv">Export CSV</button>
+        <button type="button" class="button" id="export-button">Export CSV</button>
       </div>
       <div class="history-actions__status">
-        <strong id="history-count">0 samples loaded</strong>
-        <p id="history-message">Pick a date or range to load data.</p>
+        <p id="history-action-status">Pick a date to load data.</p>
       </div>
     </div>
 
     <div class="history-summary">
       <div class="history-summary__row history-summary__head">
-        <span>Range</span><span>Max</span><span>Average</span><span>Samples</span>
+        <span>Metric</span><span>Max</span><span>Average</span><span>Min</span>
       </div>
-      <div class="history-summary__row" id="history-summary-row">
-        <span id="history-range">—</span><span id="history-max">—</span><span id="history-avg">—</span><span id="history-samples">—</span>
+      <div class="history-summary__row">
+        <span>Wind speed</span><span id="history-wind-max">--</span><span id="history-wind-average">--</span><span id="history-wind-min">--</span>
+      </div>
+      <div class="history-summary__row">
+        <span>Gust</span><span id="history-gust-max">--</span><span id="history-gust-average">--</span><span id="history-gust-min">--</span>
       </div>
     </div>
 
     <div class="view-tabs" role="group" aria-label="History view">
-      <button type="button" class="is-active" data-view="graph">Graph view</button>
-      <button type="button" data-view="table">Table view</button>
+      <button type="button" class="is-active" id="graph-tab" aria-selected="true">Graph view</button>
+      <button type="button" id="table-tab" aria-selected="false">Table view</button>
     </div>
 
-    <div id="history-graph" class="chart chart--history"><canvas id="history-chart"></canvas></div>
+    <div id="history-graph-view" class="chart chart--history"><canvas id="history-chart"></canvas></div>
 
-    <div id="history-table" class="table-scroll" hidden>
+    <div id="history-table-view" class="table-scroll" hidden>
       <table>
         <thead>
-          <tr><th scope="col">Timestamp</th><th scope="col">Speed (m/s)</th><th scope="col">Gust (m/s)</th><th scope="col">Beaufort</th><th scope="col">Status</th></tr>
+          <tr><th scope="col">Time</th><th scope="col">Speed (m/s)</th><th scope="col">Speed (km/h)</th><th scope="col">Gust (m/s)</th><th scope="col">Sensor (V)</th><th scope="col">Status</th></tr>
         </thead>
-        <tbody id="history-rows">
-          <tr><td colspan="5" class="empty-state">No samples loaded</td></tr>
-        </tbody>
+        <tbody id="history-table-body"></tbody>
       </table>
+      <p class="empty-state" id="history-empty">No samples loaded</p>
     </div>
   </section>
 
@@ -270,12 +263,12 @@
     <div class="panel-heading">
       <div>
         <p class="eyebrow">Context</p>
-        <h2 id="map-title">Station location</h2>
-        <p>Wind direction from online forecast · speed from your sensor</p>
+        <h2 id="map-title">Station location &amp; radar</h2>
+        <p>Latest radar frame: <span id="radar-time">loading…</span></p>
       </div>
     </div>
     <div id="radar-map"></div>
-    <p class="radar-note">Marker at −38.33921, 144.73832. Speed and gust figures are measured locally by the Seeed XIAO ESP32-C3.</p>
+    <p class="radar-note">Marker at the station coordinates. Rain radar overlay from RainViewer, base map © OpenStreetMap contributors.</p>
   </section>
 
   <!-- ============================================================ ABOUT -->
@@ -286,7 +279,7 @@
         <h2 id="about-title">How this dashboard works</h2>
       </div>
     </div>
-    <p>Readings stream from the station's realtime database and are treated as offline after 45 seconds of silence. History is a rolling retained ring; daily statistics are computed in your browser from the samples in view.</p>
+    <p>Readings stream from the station's realtime database and are treated as offline after a short silence. History is a rolling retained ring; daily statistics are computed in your browser from the samples in view.</p>
   </section>
 </main>
 
@@ -298,41 +291,79 @@
   </div>
 </footer>
 
-<!-- ============================================ CONTROLS / PIN DIALOG -->
-<dialog id="controls-dialog">
+<!-- ==================================================== SETTINGS DIALOG -->
+<dialog id="settings-dialog">
   <form method="dialog">
     <div class="dialog-heading">
       <h2>Station controls</h2>
-      <button class="icon-button icon-button--light" type="button" id="dialog-close" aria-label="Close">×</button>
+      <button class="icon-button icon-button--light" type="submit" aria-label="Close">×</button>
+    </div>
+    <p>Local maintenance actions. Enter the access PIN to unlock.</p>
+
+    <dl class="settings-list">
+      <div><dt>Refresh interval</dt><dd id="setting-refresh">--</dd></div>
+      <div><dt>Offline threshold</dt><dd id="setting-timeout">--</dd></div>
+    </dl>
+
+    <div class="dialog-actions">
+      <button type="button" class="button button--secondary" id="admin-login-button">Unlock controls</button>
+      <button type="button" class="button button--secondary" id="admin-signout-button" hidden>Lock controls</button>
+      <button type="button" class="button button--danger" id="clear-today-button" hidden>Clear today's stats</button>
+    </div>
+    <p id="admin-session-label">Controls are locked.</p>
+  </form>
+</dialog>
+
+<!-- ======================================================== PIN DIALOG -->
+<dialog id="admin-dialog">
+  <form method="dialog" id="admin-form">
+    <div class="dialog-heading">
+      <h2>Enter access PIN</h2>
     </div>
     <p>Enter the 5-digit access PIN to unlock local maintenance actions.</p>
 
-    <dl class="settings-list">
-      <div><dt>Offline threshold</dt><dd>45 s</dd></div>
-      <div><dt>Poll interval</dt><dd>5 s</dd></div>
-      <div><dt>History ring</dt><dd>60 min</dd></div>
-    </dl>
-
     <div class="admin-fields">
-      <label for="pin-input">Access PIN
-        <input id="pin-input" type="password" inputmode="numeric" maxlength="5" autocomplete="off" placeholder="•••••">
+      <label for="admin-pin">Access PIN
+        <input id="admin-pin" type="password" inputmode="numeric" maxlength="5" autocomplete="off" placeholder="•••••">
       </label>
     </div>
-    <p class="form-error" id="pin-error" role="alert"></p>
+    <p class="form-error" id="admin-error" role="alert"></p>
+    <p id="pin-attempts"></p>
 
     <div class="dialog-actions">
-      <button type="button" class="button button--secondary" id="pin-cancel">Cancel</button>
-      <button type="button" class="button" id="pin-submit">Unlock</button>
-      <button type="button" class="button button--danger" id="clear-today" hidden>Clear today's stats</button>
+      <button type="button" class="button button--secondary" id="admin-cancel">Cancel</button>
+      <button type="submit" class="button" id="admin-submit">Unlock</button>
     </div>
   </form>
 </dialog>
 
-<!--
-  Keep your existing <script> exactly as it is — this markup uses the same
-  class names, and the IDs above are the hooks your logic already queries.
-  If one of your IDs differs, rename it here rather than in your script.
--->
+<!-- ====================================================== EXPORT DIALOG -->
+<dialog id="export-dialog">
+  <form method="dialog" id="export-form">
+    <div class="dialog-heading">
+      <h2>Export CSV</h2>
+    </div>
+    <p>Choose the date range to download as a .csv file.</p>
+
+    <div class="export-fields">
+      <label for="export-from">From
+        <input id="export-from" type="date" required>
+      </label>
+      <label for="export-to">To
+        <input id="export-to" type="date" required>
+      </label>
+    </div>
+    <p class="form-error" id="export-error" role="alert"></p>
+
+    <div class="dialog-actions">
+      <button type="submit" class="button">Download CSV</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ========================================================== SCRIPTS -->
+<script src="config.js?v=wind-station-6"></script>
+<script type="module" src="app.js?v=wind-station-6"></script>
 <script>document.getElementById('year').textContent = String(new Date().getFullYear());</script>
 </body>
 </html>
