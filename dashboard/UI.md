@@ -2,8 +2,8 @@
 
 This document describes the user interface for the hosted wind-monitoring
 dashboard in `dashboard/`. The interface displays live readings from Firebase,
-retained wind history, sensor health information, CSV export controls, and a
-PIN-gated local reset.
+retained wind history, sensor health information, CSV export controls, and an
+operator-only reset of the recorded history.
 
 ## Public dashboard
 
@@ -94,29 +94,40 @@ Only readings currently loaded and visible in the dashboard can be exported.
 
 ### Unlock controls
 
-`Unlock controls` opens a five-digit PIN dialog. The PIN value is intentionally
-not documented here.
+`Unlock controls` opens a sign-in dialog for the Firebase operator account and
+asks for its email and password.
 
-- Three incorrect entries trigger a 15-minute lockout.
-- Attempt and lockout state are stored in that browser.
-- A successful unlock lasts only for the current page session.
-- `Clear today` remains hidden until the controls are unlocked.
-- `Lock controls` immediately hides the protected control again.
+- The password is sent to Firebase Auth, which verifies it. The page never sees,
+  stores, or ships any credential of its own.
+- The returned ID token is held in memory for the current page session only.
+  Reloading or closing the tab signs the operator out.
+- `Clear recorded history` stays hidden until sign-in succeeds.
+- `Lock controls` discards the token immediately.
+- Repeated wrong passwords are rate-limited by Firebase, per account.
+- If `firebaseWebApiKey` is empty in `config.js`, the unlock button is disabled
+  and the dashboard is strictly read-only.
 
-This PIN is a convenience gate for the public static interface. It is not
-Firebase authentication and does not grant database write access.
+The security boundary is `firebase/database.rules.json`, not this interface.
 
-### Clear today
+### Clear recorded history
 
-After PIN unlock, `Clear today` asks for confirmation and establishes a local
-cutoff timestamp for the current date. Readings before that timestamp disappear
-from the browser's daily statistics, charts, history table, and CSV exports.
+After sign-in, `Clear recorded history` asks for confirmation and then sends
+`DELETE /history.json` to Firebase with the operator's token.
 
-The cutoff survives a page refresh on the same browser. It expires when the
-calendar date changes.
+- Every retained reading is removed from the database, for every viewer.
+- The dashboard then drops its own loaded copy, keeping only the newest live
+  reading so the tiles do not blank out. Charts, statistics, the history table
+  and CSV exports all restart from that moment.
+- Recording continues immediately: the station keeps writing `/live` every two
+  seconds and adds a new `/history` point every fifteen.
+- This cannot be undone.
 
-`Clear today` does **not** delete `/live`, `/history`, or any other Firebase
-data. Other browsers are unaffected.
+The database rules allow this account to write only `null` at `/history`, so it
+can reset the record but cannot create or alter a reading. `/live` is untouched
+and is rewritten by the station within two seconds.
+
+Viewers with the page already open keep the points their browser accumulated
+during the session until they reload.
 
 ## Firebase data flow
 
@@ -140,10 +151,10 @@ account is permitted to write sensor data.
 |---|---|
 | `index.html` | Page structure, controls, dialogs, and third-party resources |
 | `styles.css` | Colours, layout, responsive rules, tables, buttons, and dialogs |
-| `app.js` | Firebase loading, live updates, PIN gate, local reset, and CSV export |
+| `app.js` | Firebase loading, live updates, operator sign-in, history deletion, and CSV export |
 | `ui.js` | Formatting, summaries, status rendering, and history table rendering |
 | `charts.js` | Chart.js setup and chart range updates |
-| `config.js` | Station name, location, coordinates, Firebase URL, and timeouts |
+| `config.js` | Station name, location, coordinates, Firebase URL and Web API key, operator email, and timeouts |
 
 ## Customising the interface
 
@@ -173,4 +184,5 @@ Then open:
 
 Check both desktop and mobile widths after changing the interface. Also verify
 that the browser console has no JavaScript errors, the station reports live,
-the PIN dialog opens, and `Clear today` stays hidden before unlock.
+the operator sign-in dialog opens, and `Clear recorded history` stays hidden
+before sign-in.

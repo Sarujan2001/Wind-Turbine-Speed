@@ -1,21 +1,41 @@
 import {
   $, configureStation, dateKey, metresPerSecond, readingsForToday,
   renderHistory, renderReading, setHistoryView, summarise, updateFreshness
-} from "./ui.js?v=wind-station-8";
-import { createCharts } from "./charts.js?v=wind-station-8";
+} from "./ui.js?v=wind-station-9";
+import { createCharts } from "./charts.js?v=wind-station-9";
 
 const config = window.WIND_DASHBOARD_CONFIG;
 const DB = config.firebaseDatabaseUrl?.replace(/\/+$/, "") || null;
-const RESET_STORAGE_KEY = `wind-dashboard:${config.stationId || "station"}:day-reset`;
-const PIN_SECURITY_KEY = `wind-dashboard:${config.stationId || "station"}:pin-security`;
-const PIN_SIGNATURE = 537185439;
-const MAX_PIN_ATTEMPTS = 3;
-const PIN_LOCKOUT_MS = 15 * 60 * 1000;
+// --- Operator access -------------------------------------------------------
+// This page is public and static, so it can hold no secret of its own: whatever
+// ships here is readable by anyone who views source. The security boundary is
+// Firebase instead. The operator signs in to a Firebase Auth account, and
+// firebase/database.rules.json grants that account's UID exactly one power -
+// deleting /history, and only deleting it. The ID token that comes back is held
+// in memory for this page session only: never stored, never reused elsewhere.
+const AUTH_ENDPOINT =
+  "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword";
+const operatorConfigured = Boolean(config.firebaseWebApiKey && DB);
+
+// Firebase answers a failed sign-in with a machine-readable reason. Mapping the
+// ones an operator can actually act on beats showing them a raw error code.
+const SIGN_IN_MESSAGES = {
+  INVALID_LOGIN_CREDENTIALS: "Incorrect email or password.",
+  INVALID_PASSWORD: "Incorrect email or password.",
+  EMAIL_NOT_FOUND: "Incorrect email or password.",
+  INVALID_EMAIL: "That is not a valid email address.",
+  MISSING_PASSWORD: "Enter the operator password.",
+  USER_DISABLED: "That account is disabled in the Firebase console.",
+  OPERATION_NOT_ALLOWED:
+    "Email/password sign-in is not enabled on this Firebase project.",
+  TOO_MANY_ATTEMPTS_TRY_LATER:
+    "Firebase has paused sign-in for this account after repeated failures. Try again shortly."
+};
+
 const state = {
   readings: [],
   latest: null,
-  selectedDate: dateKey(new Date()),
-  dayReset: loadDayReset()
+  selectedDate: dateKey(new Date())
 };
 const MAX_LOCAL_POINTS = 2200;
 // The board's history ring restarts at slot 0 after a reboot, so slots it has
@@ -26,54 +46,11 @@ const HISTORY_RETENTION_MS = 60 * 60 * 1000;
 let charts;
 let pollTimer = null;
 let eventStream = null;
-let adminUnlocked = false;
+let operatorToken = null;
+let operatorEmail = "";
 
 function number(value, fallback = NaN) {
   return Number.isFinite(value) ? value : fallback;
-}
-
-function loadDayReset() {
-  try {
-    const reset = JSON.parse(window.localStorage.getItem(RESET_STORAGE_KEY));
-    if (reset?.date === dateKey(new Date()) && Number.isFinite(reset.after)) return reset;
-  } catch (error) {
-    console.warn("Could not load the dashboard reset time", error);
-  }
-  return null;
-}
-
-function saveDayReset(reset) {
-  try {
-    window.localStorage.setItem(RESET_STORAGE_KEY, JSON.stringify(reset));
-  } catch (error) {
-    console.warn("Could not save the dashboard reset time", error);
-  }
-}
-
-function loadPinSecurity() {
-  try {
-    const saved = JSON.parse(window.localStorage.getItem(PIN_SECURITY_KEY));
-    return {
-      attempts: Math.max(0, Number(saved?.attempts) || 0),
-      lockedUntil: Math.max(0, Number(saved?.lockedUntil) || 0)
-    };
-  } catch {
-    return { attempts: 0, lockedUntil: 0 };
-  }
-}
-
-function savePinSecurity(security) {
-  try {
-    window.localStorage.setItem(PIN_SECURITY_KEY, JSON.stringify(security));
-  } catch (error) {
-    console.warn("Could not save PIN attempt state", error);
-  }
-}
-
-function pinSignature(pin) {
-  let signature = 17;
-  for (const digit of pin) signature = (signature * 31 + digit.charCodeAt(0)) >>> 0;
-  return signature;
 }
 
 // All unit conversion enters through this adapter. The dashboard itself works
@@ -112,14 +89,8 @@ function mergeReading(reading) {
   }
 }
 
-function visibleReadings() {
-  return state.readings.filter((point) => !state.dayReset ||
-    dateKey(point.time) !== state.dayReset.date ||
-    point.time.getTime() >= state.dayReset.after);
-}
-
 function selectedHistory() {
-  return visibleReadings().filter((point) => dateKey(point.time) === state.selectedDate);
+  return state.readings.filter((point) => dateKey(point.time) === state.selectedDate);
 }
 
 function renderHistorySelection() {
@@ -133,7 +104,7 @@ function acceptReading(reading) {
   if (!reading) return;
   state.latest = reading;
   mergeReading(reading);
-  const visible = visibleReadings();
+  const visible = state.readings;
   const today = readingsForToday(visible);
   renderReading(reading, summarise(today));
   updateFreshness(reading, config.offlineAfterSeconds);
@@ -156,7 +127,7 @@ async function loadStoredHistory() {
   points
     .filter((point) => newest - point.time.getTime() <= HISTORY_RETENTION_MS)
     .forEach(mergeReading);
-  charts.updateMain(visibleReadings());
+  charts.updateMain(state.readings);
   renderHistorySelection();
 }
 
@@ -211,7 +182,7 @@ function bindRangeControls() {
     const button = event.target.closest("button[data-range]:not(:disabled)");
     if (!button) return;
     $("range-tabs").querySelectorAll("button").forEach((item) => item.classList.toggle("is-active", item === button));
-    charts.setRange(button.dataset.range, visibleReadings());
+    charts.setRange(button.dataset.range, state.readings);
   });
 }
 
@@ -221,105 +192,154 @@ function setActionStatus(message, isError = false) {
   status.classList.toggle("is-error", isError);
 }
 
-function updateAdminControls() {
-  $("admin-login-button").hidden = adminUnlocked;
-  $("admin-signout-button").hidden = !adminUnlocked;
-  $("clear-today-button").hidden = !adminUnlocked;
-  $("admin-session-label").textContent = adminUnlocked
-    ? "Dashboard controls unlocked" : "Dashboard controls locked";
+function signedIn() {
+  return Boolean(operatorToken);
 }
 
-function lockAdminControls(message = "Dashboard controls locked.") {
-  adminUnlocked = false;
-  $("admin-pin").value = "";
+function updateAdminControls() {
+  const unlocked = signedIn();
+  $("admin-login-button").hidden = unlocked;
+  $("admin-login-button").disabled = !operatorConfigured;
+  $("admin-signout-button").hidden = !unlocked;
+  $("clear-history-button").hidden = !unlocked;
+  $("admin-session-label").textContent = !operatorConfigured
+    ? "Operator controls are not configured for this deployment."
+    : unlocked
+      ? `Signed in as ${operatorEmail} for this page session.`
+      : "Operator controls locked.";
+}
+
+function lockAdminControls(message = "Operator controls locked.") {
+  operatorToken = null;
+  operatorEmail = "";
+  $("admin-password").value = "";
   updateAdminControls();
   setActionStatus(message);
 }
 
-function lockoutRemaining(security, now = Date.now()) {
-  return Math.max(0, security.lockedUntil - now);
+// Turns Firebase's error into something an operator can act on. The codes come
+// back as "CODE : human sentence", so only the leading code is looked up.
+function signInMessage(raw) {
+  const code = String(raw).trim().split(/[\s:]+/)[0];
+  return SIGN_IN_MESSAGES[code] || `Sign-in failed (${code}).`;
 }
 
-function updatePinDialog() {
-  const security = loadPinSecurity();
-  const remaining = lockoutRemaining(security);
-  const submit = $("admin-submit");
-  if (remaining > 0) {
-    const minutes = Math.ceil(remaining / 60000);
-    $("admin-error").textContent = `Too many attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`;
-    $("pin-attempts").textContent = "PIN entry is temporarily locked on this browser.";
-    submit.disabled = true;
-    return false;
+async function requestIdToken(email, password) {
+  const response = await fetch(
+    `${AUTH_ENDPOINT}?key=${encodeURIComponent(config.firebaseWebApiKey)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, returnSecureToken: true })
+    });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok || !payload?.idToken) {
+    throw new Error(payload?.error?.message || `HTTP ${response.status}`);
   }
-
-  if (security.lockedUntil) savePinSecurity({ attempts: 0, lockedUntil: 0 });
-  const attempts = security.lockedUntil ? 0 : security.attempts;
-  $("pin-attempts").textContent = `${MAX_PIN_ATTEMPTS - attempts} attempts remaining.`;
-  submit.disabled = false;
-  return true;
+  return payload.idToken;
 }
 
 function openAdminLogin() {
+  if (!operatorConfigured) {
+    setActionStatus(
+      "Operator controls need firebaseWebApiKey in dashboard/config.js.", true);
+    return;
+  }
   $("admin-error").textContent = "";
-  $("admin-pin").value = "";
-  updatePinDialog();
+  $("admin-email").value = operatorEmail || config.operatorEmail || "";
+  $("admin-password").value = "";
   $("admin-dialog").showModal();
-  $("admin-pin").focus();
+  ($("admin-email").value ? $("admin-password") : $("admin-email")).focus();
 }
 
-function unlockAdminControls(event) {
+async function unlockAdminControls(event) {
   event.preventDefault();
-  if (!updatePinDialog()) return;
+  if (!operatorConfigured) return;
 
-  const pin = $("admin-pin").value.trim();
-  if (!/^\d{5}$/.test(pin)) {
-    $("admin-error").textContent = "Enter the five-digit PIN.";
+  const email = $("admin-email").value.trim();
+  const password = $("admin-password").value;
+  const error = $("admin-error");
+  if (!email || !password) {
+    error.textContent = "Enter the operator email and password.";
     return;
   }
 
-  if (pinSignature(pin) === PIN_SIGNATURE) {
-    adminUnlocked = true;
-    savePinSecurity({ attempts: 0, lockedUntil: 0 });
-    $("admin-pin").value = "";
+  const submit = $("admin-submit");
+  submit.disabled = true;
+  error.textContent = "Checking with Firebase...";
+  try {
+    operatorToken = await requestIdToken(email, password);
+    operatorEmail = email;
+    $("admin-password").value = "";
+    error.textContent = "";
     $("admin-dialog").close();
+    setActionStatus(`Operator controls unlocked for this page session (${email}).`);
+  } catch (failure) {
+    operatorToken = null;
+    operatorEmail = "";
+    $("admin-password").value = "";
+    error.textContent = signInMessage(failure.message);
+  } finally {
+    submit.disabled = false;
     updateAdminControls();
-    setActionStatus("Dashboard controls unlocked for this browser session.");
-    return;
-  }
-
-  const security = loadPinSecurity();
-  const attempts = security.attempts + 1;
-  $("admin-pin").value = "";
-  if (attempts >= MAX_PIN_ATTEMPTS) {
-    savePinSecurity({ attempts: 0, lockedUntil: Date.now() + PIN_LOCKOUT_MS });
-    updatePinDialog();
-  } else {
-    savePinSecurity({ attempts, lockedUntil: 0 });
-    $("admin-error").textContent = "Incorrect PIN.";
-    $("pin-attempts").textContent = `${MAX_PIN_ATTEMPTS - attempts} attempts remaining.`;
   }
 }
 
-function clearToday() {
-  if (!adminUnlocked) return;
+// Deletes the stored ring outright. The database rules let this account write
+// nothing but null at /history, so a signed-in operator can reset the record and
+// still cannot forge a reading.
+async function clearRecordedHistory() {
+  if (!signedIn()) return;
   const confirmed = window.confirm(
-    "Are you sure you want to clear today's dashboard results?\n\n" +
-    "This resets only this browser's charts and statistics. Firebase records will not be deleted."
+    "Delete the recorded wind history from Firebase?\n\n" +
+    "Every retained reading is removed for everyone viewing this dashboard, not " +
+    "just this browser, and the CSV export restarts from the next reading.\n\n" +
+    "This cannot be undone."
   );
   if (!confirmed) return;
 
-  const now = Date.now();
-  state.dayReset = { date: dateKey(new Date(now)), after: now };
-  saveDayReset(state.dayReset);
-  state.selectedDate = state.dayReset.date;
-  $("history-date").value = state.selectedDate;
-  const visible = visibleReadings();
-  if (state.latest) renderReading(state.latest, summarise(readingsForToday(visible)));
-  charts.updateMain(visible);
-  renderHistorySelection();
-  const message = `Dashboard results restarted at ${new Date(now).toLocaleTimeString()}. Firebase was not changed.`;
-  setActionStatus(message);
-  $("admin-session-label").textContent = message;
+  const button = $("clear-history-button");
+  button.disabled = true;
+  setActionStatus("Deleting the recorded history...");
+  try {
+    const response = await fetch(
+      `${DB}/history.json?auth=${encodeURIComponent(operatorToken)}`,
+      { method: "DELETE" });
+
+    if (!response.ok) {
+      // The database answers 401 both for a token that has aged out and for a
+      // rules refusal, so the body is what tells the two apart. They need
+      // different things from the operator, hence two messages.
+      const detail = await response.json().catch(() => null);
+      const reason = String(detail?.error || `HTTP ${response.status}`);
+      if (/permission denied/i.test(reason)) {
+        throw new Error("Firebase refused the deletion. This account's UID is not "
+          + "the OPERATOR_UID in firebase/database.rules.json.");
+      }
+      if (/expire|invalid|unauthor/i.test(reason)) {
+        lockAdminControls();
+        throw new Error("That sign-in has expired. Unlock the controls again.");
+      }
+      throw new Error(`Firebase refused the deletion (${reason}).`);
+    }
+
+    // The stored ring is gone, so drop what this page loaded from it. The newest
+    // live reading is kept so the tiles and gauge do not blank out; the charts,
+    // statistics and CSV all now start from this moment.
+    state.readings = state.latest ? [state.latest] : [];
+    state.selectedDate = dateKey(new Date());
+    $("history-date").value = state.selectedDate;
+    if (state.latest) {
+      renderReading(state.latest, summarise(readingsForToday(state.readings)));
+    }
+    charts.updateMain(state.readings);
+    renderHistorySelection();
+    setActionStatus(`Recorded history deleted at ${new Date().toLocaleTimeString()}. `
+      + "Recording restarts from the next reading.");
+  } catch (failure) {
+    setActionStatus(failure.message, true);
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function csvCell(value) {
@@ -350,7 +370,7 @@ function downloadCsv(points, from, to) {
 }
 
 function openExportDialog() {
-  const available = visibleReadings();
+  const available = state.readings;
   const firstDate = available.length ? dateKey(available[0].time) : dateKey(new Date());
   const lastDate = available.length ? dateKey(available.at(-1).time) : dateKey(new Date());
   $("export-from").value = firstDate;
@@ -371,7 +391,7 @@ function exportDateRange(event) {
     return;
   }
 
-  const points = visibleReadings().filter((point) => {
+  const points = state.readings.filter((point) => {
     const key = dateKey(point.time);
     return key >= from && key <= to;
   });
@@ -402,7 +422,7 @@ function bindHistoryControls() {
   $("next-day").addEventListener("click", () => moveSelectedDate(1));
   $("graph-tab").addEventListener("click", () => { setHistoryView("graph"); charts.resizeHistory(); });
   $("table-tab").addEventListener("click", () => setHistoryView("table"));
-  $("clear-today-button").addEventListener("click", clearToday);
+  $("clear-history-button").addEventListener("click", clearRecordedHistory);
   $("export-button").addEventListener("click", openExportDialog);
   $("export-form").addEventListener("submit", exportDateRange);
   $("export-cancel").addEventListener("click", () => $("export-dialog").close());
@@ -413,7 +433,7 @@ function bindHistoryControls() {
     $("admin-dialog").close();
   });
   $("admin-dialog").addEventListener("close", () => {
-    $("admin-pin").value = "";
+    $("admin-password").value = "";
   });
 }
 

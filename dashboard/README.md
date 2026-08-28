@@ -34,11 +34,15 @@ Full walkthrough, including the Firebase console steps, is in
 5. Check `CLOUD_CONFIGURED` is `1` in `include/cloud_config.h`, then rebuild and
    upload the PlatformIO firmware.
 6. Put the database URL in `dashboard/config.js` as `firebaseDatabaseUrl`.
+7. To enable the operator controls, add a second Authentication user for the
+   person who may reset the record, paste its UID into
+   `firebase/database.rules.json` in place of `OPERATOR_UID`, and put the
+   project's Web API key in `dashboard/config.js` as `firebaseWebApiKey`.
+   Leave that key empty to keep the dashboard strictly read-only.
 
 The board's account password stays only on the ESP32 and is excluded from Git.
-Never put it in `dashboard/config.js` — that file is published to the world.
-Dashboard viewing needs no key because reads are public. The hosted dashboard
-has no Firebase write credentials and cannot delete cloud records.
+Never put any password in `dashboard/config.js` — that file is published to the
+world. Dashboard viewing needs no key because reads are public.
 
 ## What the page reads
 
@@ -52,21 +56,36 @@ disabled until the backend retains enough data to support them.
 
 ## History controls
 
-- **Clear today** is hidden until the local five-digit PIN is entered. After
-  confirmation, it starts this browser's charts and daily statistics from that
-  moment. Firebase `/live` and `/history` records are not changed.
+- **Clear recorded history** is hidden until the operator signs in. After
+  confirmation it deletes `/history` from Firebase, so the record is cleared for
+  every viewer and the CSV export starts fresh from the next reading. It cannot
+  be undone.
 - **Export CSV** accepts an inclusive start and end date and exports every
-  visible retained reading available in that range. Readings hidden by a local
-  Clear today action are omitted. With the current one-hour Firebase ring, the
-  export cannot include readings already overwritten by the station.
+  retained reading available in that range. With the current one-hour Firebase
+  ring, the export cannot include readings already overwritten by the station.
 
-### Local PIN control
+### Operator access
 
-The unlock lasts only for the current page session. Three incorrect PIN entries
-lock PIN entry on that browser for 15 minutes, and the attempt state survives a
-refresh. This is a convenience gate on a public static page, not cloud
-authentication. The database rules remain the security boundary and grant
-writes only to the ESP32 account.
+The dashboard is a public static page, so it holds no secret of its own —
+anything shipped in it can be read by anyone who views source. The security
+boundary is Firebase:
+
+- **Unlock controls** asks for the operator account's email and password and
+  sends them to Firebase Auth. Firebase verifies the password; the page never
+  sees or stores it.
+- The ID token that comes back is kept in memory for that page session only. It
+  is not written to `localStorage`, and closing or reloading the tab ends the
+  session.
+- `firebase/database.rules.json` decides what that token can do. The operator
+  rule carries `!newData.exists()`, which means the account may only *delete*
+  `/history`. A write carrying any value is refused, so even a leaked operator
+  password cannot be used to inject false readings.
+- The Web API key in `config.js` is safe to publish. It identifies the project
+  and grants nothing; it only lets the page ask Firebase to check a password.
+- Firebase rate-limits repeated failed sign-ins for an account by itself, so the
+  page does not need a lockout of its own.
+
+Only the ESP32's account may write readings. That has not changed.
 
 If the browser cannot hold the stream open — a proxy that buffers responses, for
 instance — the page falls back to polling `/live` every `refreshSeconds` and

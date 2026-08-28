@@ -1,12 +1,23 @@
 // Realtime Database rules for the SPL wind logger.
 //
-// Paste these into Firebase console -> Realtime Database -> Rules, replacing
-// DEVICE_UID with the UID of the Authentication user the board signs in as
-// (Authentication -> Users, the account's UID column).
+// Paste these into Firebase console -> Realtime Database -> Rules.
+//
+// Two accounts appear here, and each is allowed the least it needs:
+//
+//   DEVICE   the ESP32's own Authentication user. It is the only account that
+//            may write readings, which is what keeps everyone else out of the
+//            feed. Its UID is already filled in below.
+//
+//   OPERATOR the person who may wipe the record and start recording afresh.
+//            Replace OPERATOR_UID with that account's UID (Authentication ->
+//            Users -> the UID column). The `!newData.exists()` test means this
+//            account can only DELETE /history: a write carrying any value is
+//            refused, so an operator sign-in cannot inject false readings even
+//            if the password leaks.
 //
 // Anyone may read /live and /history, which is what lets the hosted dashboard
-// work with no API key in the page. Only the board account may write readings;
-// the hosted dashboard never receives cloud deletion permission.
+// work with no credentials in the page. Nothing else in the database is
+// readable or writable by anyone.
 {
   "rules": {
     ".read": false,
@@ -19,7 +30,7 @@
 
     "history": {
       ".read": true,
-      ".write": "auth != null && auth.uid === 'rPzd5TLL2oVvHd4E8lS4mSYBcqn1'"
+      ".write": "auth != null && (auth.uid === 'rPzd5TLL2oVvHd4E8lS4mSYBcqn1' || (auth.uid === 'OPERATOR_UID' && !newData.exists()))"
     }
   }
 }

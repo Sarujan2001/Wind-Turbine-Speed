@@ -13,7 +13,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&display=swap">
 
 <!-- Alpine theme -->
-<link rel="stylesheet" href="styles.css?v=wind-station-8">
+<link rel="stylesheet" href="styles.css?v=wind-station-9">
 
 <!-- Leaflet (station map) -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -304,8 +304,9 @@
       <h2>Station controls</h2>
       <button class="icon-button icon-button--light" type="submit" aria-label="Close">×</button>
     </div>
-    <p>Local maintenance actions. Enter the access PIN to unlock.</p>
-    <p><strong>Local reset only:</strong> clearing today's stats does not delete any Firebase records.</p>
+    <p>Operator actions. Sign in with the Firebase operator account to unlock.</p>
+    <p><strong>Deletes the shared record:</strong> clearing the history removes every
+      retained reading from Firebase for all viewers, and cannot be undone.</p>
 
     <dl class="settings-list">
       <div><dt>Refresh interval</dt><dd id="setting-refresh">--</dd></div>
@@ -315,28 +316,32 @@
     <div class="dialog-actions">
       <button type="button" class="button button--secondary" id="admin-login-button">Unlock controls</button>
       <button type="button" class="button button--secondary" id="admin-signout-button" hidden>Lock controls</button>
-      <button type="button" class="button button--danger" id="clear-today-button" hidden>Clear today's stats</button>
+      <button type="button" class="button button--danger" id="clear-history-button" hidden>Clear recorded history</button>
     </div>
     <p id="admin-session-label">Controls are locked.</p>
   </form>
 </dialog>
 
-<!-- ======================================================== PIN DIALOG -->
+<!-- ======================================================== OPERATOR SIGN-IN DIALOG -->
 <dialog id="admin-dialog">
   <form id="admin-form">
     <div class="dialog-heading">
-      <h2>Enter access PIN</h2>
+      <h2>Operator sign-in</h2>
     </div>
-    <p>Enter the 5-digit access PIN to unlock local maintenance actions.</p>
+    <p>Sign in with the Firebase operator account. Firebase checks the password and
+      decides what the account may do, so nothing secret is kept in this page.</p>
 
     <div class="admin-fields">
-      <label for="admin-pin">Access PIN
-        <input id="admin-pin" type="password" inputmode="numeric" pattern="[0-9]{5}"
-               minlength="5" maxlength="5" autocomplete="off" placeholder="•••••" required>
+      <label for="admin-email">Operator email
+        <input id="admin-email" type="email" autocomplete="username"
+               spellcheck="false" required>
+      </label>
+      <label for="admin-password">Password
+        <input id="admin-password" type="password" autocomplete="current-password"
+               required>
       </label>
     </div>
     <p class="form-error" id="admin-error" role="alert"></p>
-    <p id="pin-attempts"></p>
 
     <div class="dialog-actions">
       <button type="button" class="button button--secondary" id="admin-cancel">Cancel</button>
@@ -371,8 +376,8 @@
 </dialog>
 
 <!-- ========================================================== SCRIPTS -->
-<script src="config.js?v=wind-station-8"></script>
-<script type="module" src="app.js?v=wind-station-8"></script>
+<script src="config.js?v=wind-station-9"></script>
+<script type="module" src="app.js?v=wind-station-9"></script>
 <script>document.getElementById('year').textContent = String(new Date().getFullYear());</script>
 </body>
 </html>

@@ -75,21 +75,41 @@ else.
 
 Open **Realtime Database → Rules**, paste the contents of
 [firebase/database.rules.json](firebase/database.rules.json), replace
-`DEVICE_UID` with the UID from step 2, and publish. The shape of it:
+`DEVICE_UID` with the UID from step 2 and `OPERATOR_UID` with the UID from step
+4, and publish. The shape of it:
 
 ```json
 "live":    { ".read": true, ".write": "auth != null && auth.uid === 'DEVICE_UID'" },
-"history": { ".read": true, ".write": "auth != null && auth.uid === 'DEVICE_UID'" }
+"history": { ".read": true, ".write": "auth != null && (auth.uid === 'DEVICE_UID' || (auth.uid === 'OPERATOR_UID' && !newData.exists()))" }
 ```
 
 World-readable, board-writable, everything else shut. Public reads are what let
 the static dashboard work with no key in the page; read section 7 before
 deciding that is acceptable.
 
-### Step 4 — Collect the four values
+The `!newData.exists()` clause is the whole reason the operator can be trusted
+with a browser sign-in: it permits a write only when the new value is null. That
+account can therefore delete `/history` and do nothing else — not one forged
+reading, even if its password leaks.
+
+### Step 4 — Give the operator an account
+
+Only needed if someone should be able to wipe the record and start recording
+afresh from the dashboard. Skip it to leave the page strictly read-only.
+
+1. **Authentication → Users → Add user.** Use the real address of the person who
+   will hold it, and a password only they know.
+2. Copy that account's **User UID** — it is the `OPERATOR_UID` in step 3.
+
+The board's account and the operator's account are deliberately separate. The
+board can write readings but not delete them; the operator can delete the record
+but not write readings.
+
+### Step 5 — Collect the values
 
 **Project settings → General** holds the **Web API key**. Together with the
-database URL and the account details, that is everything `secrets.h` needs.
+database URL and the account details, that is everything `secrets.h` needs. The
+same Web API key also goes into `dashboard/config.js` if step 4 was done.
 
 ## 4. Firmware setup
 
@@ -167,13 +187,21 @@ firebaseDatabaseUrl: "https://your-project-default-rtdb.asia-southeast1.firebase
 siteName: "SPL Wind Turbine Test Site",
 latitude: -38.33920835101432,
 longitude: 144.7383156116512,
+
+// Only needed for the operator reset control; leave empty to stay read-only.
+firebaseWebApiKey: "",
+operatorEmail: "",
 ```
 
-While `firebaseDatabaseUrl` stays `null` the page runs a clearly-labelled
-demonstration feed, so it is obvious when it is not showing real data.
+With no `firebaseDatabaseUrl` the page shows no readings at all and says so — it
+never substitutes invented values.
 
-No API key belongs in this file. Reads are anonymous, which is exactly why the
-rules allow public reads of those two paths.
+**No password belongs in this file**, and none is needed. Reads are anonymous,
+which is why the rules allow public reads of those two paths. The Web API key is
+not a password: it names the project and grants nothing on its own, which is why
+Firebase publishes it in every web app's config. It only lets the page ask
+Firebase to verify the operator's email and password, and what that account may
+then do is decided entirely by the rules in step 3.
 
 ### Step 2 — Push
 
@@ -244,6 +272,21 @@ cloud route is the wrong choice.
 `dashboard/config.js` — that file is published to the world. Anyone holding it
 can inject false readings; to revoke, change that account's password under
 **Authentication → Users** and reflash.
+
+**The operator reset deletes for everyone, and it is not undoable.** A signed-in
+operator pressing *Clear recorded history* removes the whole `/history` ring from
+the database. There is no copy: anything not already exported to CSV is gone, for
+every viewer, not just the browser that pressed the button. Recording resumes on
+the next reading. Export first if the record matters.
+
+**The operator password is the only secret in that path, and it is never in the
+page.** The dashboard sends the typed email and password to Firebase Auth and
+keeps the returned token in memory for that page session alone. What the token
+can do is fixed by the rules, which permit that account to write only `null` at
+`/history` — so a leaked operator password costs you the stored history, never a
+forged reading. To revoke, change or delete the account under **Authentication →
+Users**; nothing needs reflashing and nothing needs redeploying. Removing
+`firebaseWebApiKey` from `dashboard/config.js` disables the control outright.
 
 **The board does not verify Firebase's certificate.** `setInsecure()` is used
 because the ESP32 carries no root store, so traffic is encrypted but the server
