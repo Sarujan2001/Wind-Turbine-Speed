@@ -96,8 +96,18 @@ function durationFor(range) {
   return { live: 5 * 60e3, "15m": 15 * 60e3, "1h": 60 * 60e3 }[range] || 5 * 60e3;
 }
 
+// Used when Chart.js is unavailable, so the readings, sensor status and history
+// table still render. Throwing here took the whole dashboard down with the CDN,
+// leaving the page on whatever state its markup shipped with.
+const CHARTS_DISABLED = {
+  setRange() {}, updateMain() {}, updateHistory() {}, resizeHistory() {}
+};
+
 export function createCharts(mainCanvas, historyCanvas) {
-  if (!window.Chart) throw new Error("Chart.js did not load");
+  if (!window.Chart) {
+    console.error("Chart.js did not load; charts are disabled");
+    return CHARTS_DISABLED;
+  }
   const main = create(mainCanvas);
   const history = create(historyCanvas);
   let selectedRange = "live";

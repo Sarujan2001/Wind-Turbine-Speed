@@ -84,8 +84,14 @@ function updateGauge(ms) {
 function setStatusElement(element, online, text) {
   element.classList.toggle("is-online", online);
   element.classList.toggle("is-offline", !online);
-  const textNode = Array.from(element.childNodes).find((node) => node.nodeType === Node.TEXT_NODE);
-  if (textNode) textNode.nodeValue = text;
+  // The label is the LAST text node, not the first. Markup written across
+  // several lines puts a whitespace text node before the status dot, and
+  // writing into that one left the literal label from the file sitting beside
+  // the value just set - "Offline" and "Online" showing at once.
+  const textNodes = Array.from(element.childNodes)
+    .filter((node) => node.nodeType === Node.TEXT_NODE);
+  const label = textNodes.at(-1);
+  if (label) label.nodeValue = text;
   else element.append(document.createTextNode(text));
 }
 
