@@ -1,8 +1,8 @@
 import {
   $, configureStation, dateKey, metresPerSecond, readingsForToday,
   renderHistory, renderReading, setHistoryView, summarise, updateFreshness
-} from "./ui.js?v=wind-station-9";
-import { createCharts } from "./charts.js?v=wind-station-9";
+} from "./ui.js?v=wind-station-10";
+import { createCharts } from "./charts.js?v=wind-station-10";
 
 const config = window.WIND_DASHBOARD_CONFIG;
 const DB = config.firebaseDatabaseUrl?.replace(/\/+$/, "") || null;
