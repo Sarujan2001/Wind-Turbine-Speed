@@ -9,6 +9,7 @@
 
 #if CLOUD_CONFIGURED
 #include <HTTPClient.h>
+#include <HTTPUpdate.h>
 #include <WiFiClientSecure.h>
 #endif
 
@@ -22,6 +23,12 @@
 //
 // Serves its own dashboard over Wi-Fi. Serial output is retained, so the USB
 // bench monitor still works at the same time.
+
+// Bumped by hand before every release. The board only ever installs an OTA
+// manifest version strictly greater than this, so leaving the manifest
+// unpublished or pointed at an old build is a safe no-op rather than a
+// downgrade loop.
+constexpr uint16_t FIRMWARE_VERSION = 1;
 
 constexpr uint8_t WIND_ADC_PIN = D1;  // D1 is GPIO3 (analog-capable)
 constexpr float DIVIDER_MULTIPLIER = 3.0f;
@@ -243,6 +250,8 @@ uint32_t lastHistoryPush = 0;
 uint32_t historyWrites = 0;
 float windowPeakKmh = 0;  // highest reading since the last history slot
 
+uint32_t lastOtaCheck = 0;
+
 // Pulls one string field out of a JSON response. The token endpoints answer
 // with a handful of flat string fields, which is not worth a parser library.
 String jsonField(const String &body, const char *key) {
@@ -267,6 +276,25 @@ String jsonField(const String &body, const char *key) {
   const int to = body.indexOf('"', from);
   if (to < 0) return String();
   return body.substring(from, to);
+}
+
+// Same idea as jsonField(), but for the OTA manifest's version number.
+// toInt() stops at the first non-digit character, so it does not need to know
+// where the number ends. The leading quote is skipped because a version typed
+// into the Firebase console as "2" rather than 2 is stored as a string, and a
+// silent no-update is indistinguishable from a broken board.
+long jsonNumberField(const String &body, const char *key) {
+  const String needle = String("\"") + key + "\"";
+  const int at = body.indexOf(needle);
+  if (at < 0) return -1;
+
+  const int colon = body.indexOf(':', at + needle.length());
+  if (colon < 0) return -1;
+
+  String value = body.substring(colon + 1);
+  value.trim();
+  if (value.startsWith("\"")) value.remove(0, 1);
+  return value.toInt();
 }
 
 // Both endpoints return the same three fields, under camelCase names when
@@ -423,6 +451,10 @@ String liveJson() {
   json += ",\"raw\":" + String(current.raw, 0);
   json += ",\"up\":" + String(millis() / 1000);
   json += ",\"mode\":\"" + networkMode + "\"";
+  // Reported so an OTA can be confirmed from anywhere: if /live still shows
+  // the old number a day after publishing, the board never took the update.
+  // Without this the remote update is fire-and-forget.
+  json += ",\"fw\":" + String(FIRMWARE_VERSION);
   json += "}";
   return json;
 }
@@ -472,6 +504,93 @@ void publishToCloud() {
     }
   }
 }
+
+// ---------------------------------------------------------------------------
+// Over-the-air update
+//
+// Polls OTA_MANIFEST_PATH and, if it names a version newer than this build,
+// downloads and flashes it. /firmware is world-readable (like /live and
+// /history) so this never depends on the sign-in above succeeding.
+//
+// A download that fails is safe: HTTPUpdate only commits the new image once
+// it has arrived whole, so a dropped connection, a truncated file or a
+// manifest pointing at nothing leaves the running firmware untouched.
+//
+// What is NOT caught is a build that downloads perfectly and then crashes on
+// boot. There is no automatic rollback here, and a board that cannot finish
+// setup() cannot check for the next update either - it needs the cable. So
+// publish only a build that has been run on a board over USB first.
+// ---------------------------------------------------------------------------
+
+void checkForOta() {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  const uint32_t now = millis();
+  if (now - lastOtaCheck < OTA_CHECK_INTERVAL_MS) return;
+  lastOtaCheck = now;
+
+  // Dropped before either request below, so only one TLS session is ever
+  // allocated at a time - the same reasoning as requestTokens(), and two of
+  // them would be tight on RAM. The next publish pays one fresh handshake.
+  cloudHttp.end();
+  cloudTls.stop();
+
+  // The manifest fetch is scoped so its TLS session is destroyed before the
+  // download opens its own.
+  long remoteVersion = -1;
+  String otaUrl;
+  {
+    WiFiClientSecure manifestTls;
+    manifestTls.setInsecure();
+    HTTPClient manifestHttp;
+    if (!manifestHttp.begin(
+            manifestTls,
+            String(FIREBASE_DATABASE_URL) + OTA_MANIFEST_PATH + ".json")) {
+      return;
+    }
+
+    const int code = manifestHttp.GET();
+    const String body = code == 200 ? manifestHttp.getString() : String();
+    manifestHttp.end();
+    if (code != 200 || body.isEmpty() || body == "null") return;
+
+    remoteVersion = jsonNumberField(body, "version");
+    otaUrl = jsonField(body, "url");
+  }
+
+  if (remoteVersion <= static_cast<long>(FIRMWARE_VERSION) ||
+      otaUrl.isEmpty()) {
+    return;
+  }
+
+  Serial.print("OTA: v");
+  Serial.print(remoteVersion);
+  Serial.print(" available (running v");
+  Serial.print(FIRMWARE_VERSION);
+  Serial.println("); downloading...");
+
+  WiFiClientSecure otaTls;
+  otaTls.setInsecure();
+  // A GitHub Release asset answers with a redirect to the file itself; the
+  // library follows nothing by default, so the redirect has to be turned on
+  // explicitly or the "download" is just the redirect page.
+  httpUpdate.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+
+  switch (httpUpdate.update(otaTls, otaUrl)) {
+    case HTTP_UPDATE_FAILED:
+      Serial.printf("OTA failed (%d): %s\n", httpUpdate.getLastError(),
+                    httpUpdate.getLastErrorString().c_str());
+      break;
+    case HTTP_UPDATE_NO_UPDATES:
+      Serial.println("OTA: server reported nothing to install.");
+      break;
+    case HTTP_UPDATE_OK:
+      // httpUpdate reboots on success before this line is reached in
+      // practice; kept as a fallback log if that ever changes.
+      Serial.println("OTA: installed - rebooting.");
+      break;
+  }
+}
 #endif
 
 // ---------------------------------------------------------------------------
@@ -487,6 +606,8 @@ void setup() {
   Serial.println();
   Serial.println("SPL Wind Speed Logger");
   Serial.println("XIAO ESP32-C3 | ADC: D1 / GPIO3");
+  Serial.print("Firmware version: ");
+  Serial.println(FIRMWARE_VERSION);
 
   if (!joinExistingNetwork()) startHotspot();
 
@@ -567,5 +688,6 @@ void loop() {
 
 #if CLOUD_CONFIGURED
   publishToCloud();
+  checkForOta();
 #endif
 }

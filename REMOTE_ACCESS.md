@@ -302,3 +302,82 @@ of downloads, and 100 simultaneous connections. A dashboard tab left open
 continuously streams roughly 250 MB a month, so the practical limit is a few
 dozen permanently-open tabs rather than the write rate. No card is required, and
 a Spark project cannot run up a bill.
+
+## 8. Over-the-air firmware updates
+
+Once a board is out at a turbine site, plugging in a USB cable to change
+`main.cpp` is not always practical. `/firmware` in the same Realtime Database
+solves that: the board polls it every `OTA_CHECK_INTERVAL_MS` (30 minutes) for
+a manifest naming a newer build, and if it finds one, downloads and flashes it
+itself over the same Wi-Fi connection it already uses to publish readings -
+see `checkForOta()` in `main.cpp`.
+
+```text
+GitHub Release (the .bin)  <--HTTPS-- ESP32  --reads manifest-->  /firmware in Firebase RTDB
+```
+
+### Publishing a new version
+
+1. **Bump the version.** In `main.cpp`, increase `FIRMWARE_VERSION` (currently
+   an integer starting at 1). The board only ever installs a manifest version
+   strictly greater than its own, so this is what stops it reinstalling the
+   same build forever.
+2. **Build.**
+   ```powershell
+   ~/.platformio/penv/Scripts/pio.exe run
+   ```
+   This produces `.pio/build/seeed_xiao_esp32c3/firmware.bin` - the file that
+   gets flashed, without needing to touch a board yet.
+3. **Publish the .bin as a GitHub Release asset.** Create a release (tag it
+   e.g. `v2`), attach `firmware.bin` to it. Its asset URL looks like:
+   ```text
+   https://github.com/<owner>/<repo>/releases/download/v2/firmware.bin
+   ```
+   That URL redirects to the actual file; `checkForOta()` follows the
+   redirect, so this works without any extra setup.
+4. **Edit `/firmware` in the Firebase console** (Realtime Database -> Data),
+   at the root next to `live` and `history`:
+   ```json
+   { "version": 2, "url": "https://github.com/<owner>/<repo>/releases/download/v2/firmware.bin" }
+   ```
+   This is a manual step on purpose - nothing in this codebase or the
+   dashboard can write here (see `firebase/database.rules.json`), so a leaked
+   Firebase Web API key or a compromised dashboard cannot push firmware to the
+   board.
+5. **Wait.** Every board that is online checks within 30 minutes, downloads
+   the new `.bin`, flashes it, and reboots on its own. Watching the serial
+   monitor of a board that is still on USB shows the same progress this
+   describes, but nothing needs to stay plugged in for the update to happen in
+   the field.
+
+### The one way this can still cost you a site visit
+
+**Never publish a build you have not run on a board over USB first.** A
+download that fails is harmless, but a build that downloads perfectly and then
+crashes during `setup()` is not: there is no automatic rollback here, and a
+board that cannot finish booting cannot check for the next update either. At
+that point only the cable can recover it. Flash it, watch it come up on the
+serial monitor, *then* publish the same `.bin` as a release.
+
+Confirm an update actually landed by checking `fw` in `/live` (the board
+reports its running `FIRMWARE_VERSION` with every reading). If it still shows
+the old number a day after publishing, the board never took the update.
+
+### What keeps this safe to leave running unattended
+
+- **A bad manifest cannot brick the board.** The new image is only committed
+  to flash once it has downloaded completely and passed the check the
+  `Update` library runs on it; a dropped connection, a truncated file, or a
+  manifest pointing at nothing simply leaves the current firmware running.
+- **The board has two firmware slots** (the default partition table for this
+  4 MB board already reserves two ~1.25 MB app partitions), so the new image
+  never overwrites the one that is currently running until it is confirmed
+  good.
+- **Nobody but you can point `/firmware` at anything**, because the database
+  rule grants `/firmware` read access only - there is no `.write` rule for it
+  at all, so it is edited exclusively through the Firebase console, which
+  bypasses these rules for whoever is signed in there.
+- **The download is not certificate-checked**, the same trade-off already
+  made everywhere else in this codebase (`setInsecure()` - see section 7).
+  That is a reasonable trade for a wind-speed logger; it would not be for
+  firmware with higher stakes riding on it.
