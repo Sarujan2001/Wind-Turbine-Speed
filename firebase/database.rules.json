@@ -15,9 +15,14 @@
 //            refused, so an operator sign-in cannot inject false readings even
 //            if the password leaks.
 //
-// Anyone may read /live and /history, which is what lets the hosted dashboard
-// work with no credentials in the page. Nothing else in the database is
-// readable or writable by anyone.
+// Anyone may read /live, /history and /firmware, which is what lets the
+// hosted dashboard and the board's OTA check both work with no credentials.
+// Nothing else in the database is readable or writable by anyone.
+//
+// /firmware has no ".write" rule, so it is left at the default (false) for
+// every client and Auth account, including the device and the operator: the
+// only way to publish a new version is to edit it directly in the Firebase
+// console's Data tab, which is not subject to these rules.
 {
   "rules": {
     ".read": false,
@@ -31,6 +36,10 @@
     "history": {
       ".read": true,
       ".write": "auth != null && (auth.uid === 'rPzd5TLL2oVvHd4E8lS4mSYBcqn1' || (auth.uid === 'OPERATOR_UID' && !newData.exists()))"
+    },
+
+    "firmware": {
+      ".read": true
     }
   }
 }

@@ -39,3 +39,18 @@
 // An ID token from Firebase Auth lasts one hour. Renew a little early so a
 // write is never attempted with a token that expired in transit.
 #define CLOUD_TOKEN_MARGIN_MS 300000
+
+// ---------------------------------------------------------------------------
+// Over-the-air firmware updates.
+//
+// The board polls this Realtime Database path for a newer build. The node
+// looks like:
+//   { "version": 2, "url": "https://github.com/you/repo/releases/download/v2/firmware.bin" }
+// version is a plain number, url points directly at a compiled .bin (a GitHub
+// Release asset works well - its redirect to the actual file is followed
+// automatically). Publishing a new version is a manual edit in the Firebase
+// console; nothing in this codebase writes this node on its own, and a
+// missing or stale node is simply never acted on.
+// ---------------------------------------------------------------------------
+#define OTA_MANIFEST_PATH "/firmware"
+#define OTA_CHECK_INTERVAL_MS (30UL * 60UL * 1000UL)
