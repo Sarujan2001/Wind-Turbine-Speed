@@ -12,9 +12,9 @@ window.WIND_DASHBOARD_CONFIG = {
 
   deviceName: "Seeed XIAO ESP32-C3",
 
-  latitude: -38.33920835101432,
+  latitude: -38.463167,
 
-  longitude: 144.7383156116512,
+  longitude: 145.238583,
 
   mapZoom: 8,
 
